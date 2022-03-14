@@ -10,12 +10,17 @@ use near_sdk::serde::Serialize;
 #[global_allocator]
 static ALLOC: near_sdk::wee_alloc::WeeAlloc = near_sdk::wee_alloc::WeeAlloc::INIT;
 
-const ONE_NEAR:u128 = 1_000_000_000_000_000_000_000_000;
+const ONE_NEAR: u128 = 1_000_000_000_000_000_000_000_000;
 const PROB:u8 = 128;
 const FRACTIONAL_BASE: u128 = 10_000;
 
-#[near_bindgen]
+#[ext_contract(nft_contract)]
+trait NftFetch {
+    // fn nft_tokens(&self, from_index: Option<U128>, limit: Option<u64>) -> Vec<JsonToken>;
+    fn nft_tokens(&self) -> Vec<JsonToken>;
+}
 
+#[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct SlotMachine {
     pub owner_id: AccountId,
@@ -26,7 +31,8 @@ pub struct SlotMachine {
     pub house_fee: u128,
     pub win_multiplier: u128, // base 10e-5
     pub nft_balance: u128,
-    pub dev_balance: u128
+    pub dev_balance: u128,
+    pub base_gas: u128
 }
 
 impl Default for SlotMachine {
@@ -38,7 +44,7 @@ impl Default for SlotMachine {
 #[near_bindgen]
 impl SlotMachine {
     #[init]
-    pub fn new(owner_id: AccountId, nft_id: AccountId, nft_fee: u128, dev_fee: u128, house_fee: u128, win_multiplier: u128) -> Self {
+    pub fn new(owner_id: AccountId, nft_id: AccountId, nft_fee: u128, dev_fee: u128, house_fee: u128, win_multiplier: u128, base_gas: u128) -> Self {
         assert!(env::is_valid_account_id(owner_id.as_bytes()), "Invalid owner account");
         assert!(!env::state_exists(), "Already initialized");
         Self {
@@ -50,7 +56,8 @@ impl SlotMachine {
             house_fee, // 500
             win_multiplier, // 20000
             nft_balance: 0,
-            dev_balance: 0
+            dev_balance: 0,
+            base_gas
         }
     }
 
@@ -110,13 +117,42 @@ impl SlotMachine {
         //retrive value storaged for devs/nft holders
         //zero storaged values
         //send funds
+        let base_gas = self.base_gas;
 
-        // function nft_total_supply(): string {}
+        let dev_account_id = self.owner_id;
+        let nft_account_id = self.nft_id;
 
-        // function nft_tokens(
-        // from_index: string|null, // default: "0"
-        // limit: number|null, // default: unlimited (could fail due to gas limit)
-        // ): Token[] {}
+        let withdrawal_nft_balance = self.nft_balance;
+        let withdrawal_dev_balance = self.dev_balance;
+
+        self.nft_balance = 0;
+        self.dev_balance = 0;
+
+        //send tokens to dev wallet
+        Promise::new(dev_account_id).transfer(withdrawal_dev_balance)
+
+        //fetch nft holders wallets
+        let nft_tokens = nft_contract::nft_tokens(&self, &nft_account_id, NO_DEPOSIT, base_gas);
+
+        //count how many each owner has
+        let mut nft_owner_count = std::collections::HashMap<AccountId, u128>
+        let owner_count: u128;
+        let total_nft_count: u128 = 0;
+        for val in nft_tokens.iter() {
+            match val {
+                Some(token_blob) => {
+                    owner_count = nft_owner_count.get(&val.owner_id).unwrap_or(0);
+                    nft_owner_count.insert(&val.owner_id, &owner_count);
+                    total_nft_count = total_nft_count + 1;
+                },
+                None => (),
+            }
+        }
+
+        let piece_nft_balance = withdrawal_nft_balance / total_nft_count;
+        for (key, value) in &*nft_owner_count {
+            Promise::new(key).transfer(value * piece_nft_balance);
+        }
 
     }
 
@@ -253,6 +289,31 @@ mod tests {
         assert_eq!(BALANCE_AMOUNT, user_balance);
     }
 
+    #[test]
+    fn test_get_credits_function_assert_view() {
+        // set up the mock context into the testing environment
+        const BASE_DEPOSIT: u128 = 0;
+        const CONTRACT_BALANCE: u128 = 0;
+        let context = get_context(vec![], true, BASE_DEPOSIT.clone(), CONTRACT_BALANCE.clone());
+        testing_env!(context);
+        // instantiate a contract variable with the counter at zero
+        let mut contract =  SlotMachine {
+            owner_id: OWNER_ACCOUNT.to_string(),
+            nft_id: NFT_ACCOUNT.to_string(),
+            credits: UnorderedMap::new(b"credits".to_vec()),
+            nft_fee: 400, // base 10e-5
+            dev_fee: 10, // base 10e-5
+            house_fee: 10,
+            win_multiplier: 200000, // base 10e-5
+            nft_balance: 0,
+            dev_balance: 0
+        };
+        
+        let user_balance: u128 =  contract.get_credits(SIGNER_ACCOUNT.clone().to_string()).into();
+
+        assert_eq!(0, user_balance);
+    }
+
     //missing:
     // play
 
@@ -308,17 +369,65 @@ mod tests {
             loop_counter = loop_counter + 1;
         }
         
-        println!("total_count:{}", total_count);
-        println!("dev_fee:{}", nft_fee);
-        println!("dev_fee * total_count:{}", nft_fee * total_count);
-        
         assert_eq!(contract.nft_balance, nft_fee * total_count, "nft_fee failure");
         assert_eq!(contract.dev_balance, dev_fee * total_count, "dev_fee failure");
-        
-
     }
 
     // update contract
-    // dev funds
+    // assert panic when no owner calls
+    // assert change when owner calls
+    #[test]
+    #[should_panic]
+    fn test_update_contract_function_assert_panic_no_owner() {
+        // set up the mock context into the testing environment
+        const BASE_DEPOSIT: u128 = 0;
+        const CONTRACT_BALANCE: u128 = 0;
+        let context = get_context(vec![], false, BASE_DEPOSIT.clone(), CONTRACT_BALANCE.clone());
+        testing_env!(context);
+        // instantiate a contract variable with the counter at zero
+        let mut contract =  SlotMachine {
+            owner_id: OWNER_ACCOUNT.to_string(),
+            nft_id: NFT_ACCOUNT.to_string(),
+            credits: UnorderedMap::new(b"credits".to_vec()),
+            nft_fee: 4000, // base 10e-5
+            dev_fee: 500, // base 10e-5
+            house_fee: 500,
+            win_multiplier: 20000, // base 10e-5
+            nft_balance: 0,
+            dev_balance: 0
+        };
+        
+        contract.update_contract(10, 10, 10, 10);
+    }
 
+    #[test]
+    fn test_update_contract_function() {
+        // set up the mock context into the testing environment
+        const BASE_DEPOSIT: u128 = 0;
+        const CONTRACT_BALANCE: u128 = 0;
+        let context = get_context(vec![], false, BASE_DEPOSIT.clone(), CONTRACT_BALANCE.clone());
+        testing_env!(context);
+        // instantiate a contract variable with the counter at zero
+        let mut contract =  SlotMachine {
+            owner_id: SIGNER_ACCOUNT.to_string(),
+            nft_id: NFT_ACCOUNT.to_string(),
+            credits: UnorderedMap::new(b"credits".to_vec()),
+            nft_fee: 4000, // base 10e-5
+            dev_fee: 500, // base 10e-5
+            house_fee: 500,
+            win_multiplier: 20000, // base 10e-5
+            nft_balance: 0,
+            dev_balance: 0
+        };
+        
+        contract.update_contract(10, 10, 10, 10);
+
+        assert_eq!(contract.nft_fee, 10, "nft_fee");
+        assert_eq!(contract.dev_fee, 10, "dev_fee");
+        assert_eq!(contract.house_fee, 10, "house_fee");
+        assert_eq!(contract.win_multiplier, 10, "win_multiplier");
+    }
+
+    // dev funds
+    //how to test transfers to multiple wallets and cross contract calls
 }
