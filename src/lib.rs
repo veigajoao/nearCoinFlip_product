@@ -63,6 +63,18 @@ impl SlotMachine {
         self.credits.insert(&account_id, &credits);
     }
     
+    pub fn retrieve_credits(&mut self) -> Promise {
+        let account_id = env::predecessor_account_id();
+        let credits: u128 = self.credits.get(&account_id).unwrap_or(0).into();
+        let new_credits: u128 = 0;
+        self.credits.insert(&account_id, &new_credits);
+        Promise::new(env::predecessor_account_id()).transfer(credits)
+    }
+
+    pub fn get_credits(&self, account_id: AccountId) -> U128 {
+        self.credits.get(&account_id).unwrap_or(0).into()
+    }
+
     pub fn play(&mut self, bet_size: u128) -> bool {
 
         // check that user has credits
@@ -91,18 +103,6 @@ impl SlotMachine {
 
         self.credits.insert(&account_id, &credits);
         rand < PROB
-    }
-
-    pub fn get_credits(&self, account_id: AccountId) -> U128 {
-        self.credits.get(&account_id).unwrap_or(0).into()
-    }
-
-    pub fn retrieve_credits(&mut self) -> Promise {
-        let account_id = env::predecessor_account_id();
-        let credits: u128 = self.credits.get(&account_id).unwrap_or(0).into();
-        let new_credits: u128 = 0;
-        self.credits.insert(&account_id, &new_credits);
-        Promise::new(env::predecessor_account_id()).transfer(credits)
     }
 
     //retrieve dev funds function
@@ -255,6 +255,69 @@ mod tests {
 
     //missing:
     // play
+
+    #[test]
+    fn test_play_function() {
+        // set up the mock context into the testing environment
+        const BASE_DEPOSIT: u128 = 0;
+        const CONTRACT_BALANCE: u128 = 0;
+        let context = get_context(vec![], false, BASE_DEPOSIT.clone(), CONTRACT_BALANCE.clone());
+        testing_env!(context);
+        // instantiate a contract variable with the counter at zero
+        let mut contract =  SlotMachine {
+            owner_id: OWNER_ACCOUNT.to_string(),
+            nft_id: NFT_ACCOUNT.to_string(),
+            credits: UnorderedMap::new(b"credits".to_vec()),
+            nft_fee: 4000, // base 10e-5
+            dev_fee: 500, // base 10e-5
+            house_fee: 500,
+            win_multiplier: 20000, // base 10e-5
+            nft_balance: 0,
+            dev_balance: 0
+        };
+        println!("Game won: {}", 20000 / FRACTIONAL_BASE);
+        const BALANCE_AMOUNT: u128 = 10_000;
+        contract.credits.insert(&SIGNER_ACCOUNT.to_string(), &BALANCE_AMOUNT);
+
+        const BET_AMOUNT: u128 = 100;
+
+        let mut loop_counter: u128 = 0;
+        let mut start_balance: u128;
+        let mut end_balance: u128;
+        let mut game_won: bool;
+
+        let dev_fee: u128 = (&BET_AMOUNT * contract.dev_fee) / FRACTIONAL_BASE;
+        let nft_fee: u128 = (&BET_AMOUNT * contract.nft_fee) / FRACTIONAL_BASE;
+        let house_fee: u128 = (&BET_AMOUNT * contract.house_fee) / FRACTIONAL_BASE;
+        let net_bet: u128 = BET_AMOUNT.clone() - dev_fee - nft_fee - house_fee;
+        let net_won: u128 = (net_bet * contract.win_multiplier) / FRACTIONAL_BASE ;
+
+        let total_count: u128 = 30;
+        let mut loop_counter: u128 = 0;
+        while loop_counter < total_count {
+
+            start_balance = contract.get_credits(SIGNER_ACCOUNT.clone().to_string()).into();
+            game_won = contract.play(BET_AMOUNT);
+            end_balance = contract.get_credits(SIGNER_ACCOUNT.clone().to_string()).into();
+                
+            if game_won {
+                assert_eq!(start_balance - BET_AMOUNT + net_won, end_balance, "user balance doesn't match play result");
+            } else {
+                assert_eq!(start_balance - BET_AMOUNT, end_balance, "user balance doesn't match play result");
+            }
+            loop_counter = loop_counter + 1;
+        }
+        
+        println!("total_count:{}", total_count);
+        println!("dev_fee:{}", nft_fee);
+        println!("dev_fee * total_count:{}", nft_fee * total_count);
+        
+        assert_eq!(contract.nft_balance, nft_fee * total_count, "nft_fee failure");
+        assert_eq!(contract.dev_balance, dev_fee * total_count, "dev_fee failure");
+        
+
+    }
+
     // update contract
     // dev funds
 
