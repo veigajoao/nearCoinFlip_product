@@ -1,2 +1,2 @@
-/target
-Cargo.lock
+coin_flip_contract/target
+coin_flip_contract/Cargo.lock
