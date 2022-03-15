@@ -139,13 +139,10 @@ impl SlotMachine {
         let owner_count: u128;
         let total_nft_count: u128 = 0;
         for val in nft_tokens.iter() {
-            match val {
-                Some(token_blob) => {
-                    owner_count = nft_owner_count.get(&val.owner_id).unwrap_or(0);
-                    nft_owner_count.insert(&val.owner_id, &owner_count);
-                    total_nft_count = total_nft_count + 1;
-                },
-                None => (),
+            if let Some(token_blob) = val {
+                owner_count = nft_owner_count.get(&val.owner_id).unwrap_or(0);
+                nft_owner_count.insert(&val.owner_id, &owner_count);
+                total_nft_count = total_nft_count + 1;
             }
         }
 
