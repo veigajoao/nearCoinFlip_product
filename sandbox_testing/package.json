@@ -7,5 +7,9 @@
     "test": "mocha"
   },
   "author": "hack with jack",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "bn.js": "^5.2.0",
+    "near-api-js": "^0.44.2"
+  }
 }

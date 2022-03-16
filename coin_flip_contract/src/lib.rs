@@ -6,14 +6,12 @@ use near_sdk::{
     collections::{ UnorderedMap },
     json_types::{ U128 },
 };
-// use near_sdk::serde::Serialize;
-// use near_sdk::serde::Deserialize;
 use near_contract_standards::non_fungible_token::{Token};
 
 #[global_allocator]
 static ALLOC: near_sdk::wee_alloc::WeeAlloc = near_sdk::wee_alloc::WeeAlloc::INIT;
 
-const ONE_NEAR: u128 = 1_000_000_000_000_000_000_000_000;
+// const ONE_NEAR: u128 = 1_000_000_000_000_000_000_000_000;
 const PROB:u8 = 128;
 const FRACTIONAL_BASE: u128 = 10_000;
 
@@ -91,7 +89,7 @@ impl SlotMachine {
     }
 
     //bet_type heads == true, tails == false
-    pub fn play(&mut self, bet_type: bool, bet_size: u128) -> bool {
+    pub fn play(&mut self, _bet_type: bool, bet_size: u128) -> bool {
 
         // check that user has credits
         let account_id = env::predecessor_account_id();
@@ -191,6 +189,23 @@ impl SlotMachine {
         self.house_fee = house_fee;
         self.win_multiplier = win_multiplier;
         self.base_gas = base_gas;
+    }
+
+    //return current contract state
+    pub fn get_contract_state(&self) -> std::collections::HashMap<String, String> {
+        let mut state = std::collections::HashMap::new();
+        
+        state.insert(String::from("owner_id"), self.owner_id.to_string());
+        state.insert(String::from("nft_id"), self.nft_id.to_string());
+        state.insert(String::from("nft_fee"), self.nft_fee.to_string());
+        state.insert(String::from("dev_fee"), self.dev_fee.to_string());
+        state.insert(String::from("house_fee"), self.house_fee.to_string());
+        state.insert(String::from("win_multiplier"), self.win_multiplier.to_string());
+        state.insert(String::from("nft_balance"), self.nft_balance.to_string());
+        state.insert(String::from("dev_balance"), self.dev_balance.to_string());
+        state.insert(String::from("base_gas"), self.base_gas.to_string());
+
+        state
     }
 }
 
@@ -387,7 +402,7 @@ mod tests {
         while loop_counter < total_count {
 
             start_balance = contract.get_credits(SIGNER_ACCOUNT.clone().to_string()).into();
-            game_won = contract.play(BET_AMOUNT);
+            game_won = contract.play(true, BET_AMOUNT);
             end_balance = contract.get_credits(SIGNER_ACCOUNT.clone().to_string()).into();
                 
             if game_won {
@@ -458,6 +473,41 @@ mod tests {
         assert_eq!(contract.house_fee, 10, "house_fee");
         assert_eq!(contract.win_multiplier, 10, "win_multiplier");
         assert_eq!(contract.base_gas, 10, "base_gas");
+    }
+
+    #[test]
+    fn test_get_contract_state() {
+        // set up the mock context into the testing environment
+        const BASE_DEPOSIT: u128 = 0;
+        const CONTRACT_BALANCE: u128 = 0;
+        let context = get_context(vec![], false, BASE_DEPOSIT.clone(), CONTRACT_BALANCE.clone());
+        testing_env!(context);
+        // instantiate a contract variable with the counter at zero
+        let contract =  SlotMachine {
+            owner_id: OWNER_ACCOUNT.to_string(),
+            nft_id: NFT_ACCOUNT.to_string(),
+            credits: UnorderedMap::new(b"credits".to_vec()),
+            nft_fee: 400, // base 10e-5
+            dev_fee: 10, // base 10e-5
+            house_fee: 10,
+            win_multiplier: 200000, // base 10e-5
+            nft_balance: 0,
+            dev_balance: 0,
+            base_gas: 0
+        };
+        
+        let contract_copy: std::collections::HashMap<String, String> =  contract.get_contract_state();
+
+        assert_eq!(contract_copy.get("owner_id").unwrap().clone(), contract.owner_id.to_string());
+        assert_eq!(contract_copy.get("nft_id").unwrap().clone(), contract.nft_id.to_string());
+
+        assert_eq!(contract_copy.get("nft_fee").unwrap().clone(), contract.nft_fee.to_string());
+        assert_eq!(contract_copy.get("dev_fee").unwrap().clone(), contract.dev_fee.to_string());
+        assert_eq!(contract_copy.get("house_fee").unwrap().clone(), contract.house_fee.to_string());
+        assert_eq!(contract_copy.get("win_multiplier").unwrap().clone(), contract.win_multiplier.to_string());
+        assert_eq!(contract_copy.get("nft_balance").unwrap().clone(), contract.nft_balance.to_string());
+        assert_eq!(contract_copy.get("dev_balance").unwrap().clone(), contract.dev_balance.to_string());
+        assert_eq!(contract_copy.get("base_gas").unwrap().clone(), contract.base_gas.to_string());
     }
 
     // dev funds

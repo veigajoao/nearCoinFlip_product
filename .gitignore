@@ -1,2 +1,4 @@
-# coin_flip_contract/target
-# coin_flip_contract/Cargo.lock
+coin_flip_contract/target
+nep_171/target
+
+sandbox_testing/node_modules
