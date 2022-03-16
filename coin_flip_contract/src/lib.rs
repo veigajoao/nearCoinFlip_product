@@ -4,7 +4,7 @@ use near_sdk::{
     env, near_bindgen, AccountId, Balance, Promise, PromiseResult, 
     ext_contract, serde_json,
     collections::{ UnorderedMap },
-    json_types::{ U128 },
+    json_types::{ U128, U64 },
 };
 use near_contract_standards::non_fungible_token::{Token};
 
@@ -13,7 +13,7 @@ static ALLOC: near_sdk::wee_alloc::WeeAlloc = near_sdk::wee_alloc::WeeAlloc::INI
 
 // const ONE_NEAR: u128 = 1_000_000_000_000_000_000_000_000;
 const PROB:u8 = 128;
-const FRACTIONAL_BASE: u128 = 10_000;
+const FRACTIONAL_BASE: u128 = 100_000;
 
 #[ext_contract(ext_nft)]
 trait NftFetch {
@@ -50,20 +50,20 @@ impl Default for SlotMachine {
 #[near_bindgen]
 impl SlotMachine {
     #[init]
-    pub fn new(owner_id: AccountId, nft_id: AccountId, nft_fee: u128, dev_fee: u128, house_fee: u128, win_multiplier: u128, base_gas: u64) -> Self {
+    pub fn new(owner_id: AccountId, nft_id: AccountId, nft_fee: U128, dev_fee: U128, house_fee: U128, win_multiplier: U128, base_gas: U64) -> Self {
         assert!(env::is_valid_account_id(owner_id.as_bytes()), "Invalid owner account");
         assert!(!env::state_exists(), "Already initialized");
         Self {
             owner_id,
             nft_id,
             credits: UnorderedMap::new(b"credits".to_vec()),
-            nft_fee, // 4000
-            dev_fee, // 500
-            house_fee, // 500
-            win_multiplier, // 20000
+            nft_fee: nft_fee.0, // 4000
+            dev_fee: dev_fee.0, // 500
+            house_fee: house_fee.0, // 500
+            win_multiplier: win_multiplier.0, // 20000
             nft_balance: 0,
             dev_balance: 0,
-            base_gas
+            base_gas: base_gas.0
         }
     }
 
@@ -89,15 +89,15 @@ impl SlotMachine {
     }
 
     //bet_type heads == true, tails == false
-    pub fn play(&mut self, _bet_type: bool, bet_size: u128) -> bool {
+    pub fn play(&mut self, _bet_type: bool, bet_size: U128) -> bool {
 
         // check that user has credits
         let account_id = env::predecessor_account_id();
         let mut credits = self.credits.get(&account_id).unwrap_or(0);
-        assert!(credits > 0, "no credits to play");
+        assert!(credits > bet_size.0, "no credits to play");
 
         // charge dev and nft fees
-        let mut net_bet: u128 = bet_size;
+        let mut net_bet: u128 = bet_size.0;
         let nft_cut: u128 = (&net_bet * self.nft_fee) / FRACTIONAL_BASE;
         let dev_cut: u128 = (&net_bet * self.dev_fee) / FRACTIONAL_BASE;
         let house_cut: u128 = (&net_bet * self.house_fee) / FRACTIONAL_BASE;
@@ -107,23 +107,24 @@ impl SlotMachine {
         self.dev_balance = self.dev_balance + dev_cut;
 
         // send off credits
-        credits = credits - &bet_size;
+        credits = credits - bet_size.0;
         
         let rand: u8 = *env::random_seed().get(0).unwrap();
-        if rand < PROB {
+        let outcome: bool = rand < PROB;
+        if outcome {
             let won_value = (net_bet * self.win_multiplier) / FRACTIONAL_BASE;
             credits = credits + won_value;
         }
 
         self.credits.insert(&account_id, &credits);
-        rand < PROB
+        outcome
     }
 
     //retrieve dev funds function
     pub fn retrieve_dev_funds(&mut self) -> Promise {
         let dev_account_id = self.owner_id.clone();
 
-        let withdrawal_dev_balance = self.dev_balance;
+        let withdrawal_dev_balance = self.dev_balance.clone();
 
         self.dev_balance = 0;
 
@@ -135,8 +136,6 @@ impl SlotMachine {
         let base_gas: u64 = self.base_gas;
 
         let nft_account_id = self.nft_id.clone();
-
-        self.nft_balance = 0;
 
         //fetch nft holders wallets
         let nft_tokens = ext_nft::nft_tokens(&nft_account_id, 0, base_gas).then(
@@ -168,13 +167,15 @@ impl SlotMachine {
                 }
 
                 let mut promise_vector: Vec<Promise> = Vec::new();
-                let withdrawal_nft_balance = self.nft_balance;
+                let withdrawal_nft_balance = self.nft_balance.clone();
+                self.nft_balance = 0;
                 let piece_nft_balance = withdrawal_nft_balance / total_nft_count;
 
                 for (key, value) in &nft_owner_count {
                     let promise_var: Promise = Promise::new(key.clone()).transfer(value * piece_nft_balance);
                     promise_vector.push(promise_var)
                 }
+
                 promise_vector
             },
             PromiseResult::Failed => env::panic(b"ERR_CALL_FAILED"),
@@ -182,13 +183,13 @@ impl SlotMachine {
     }
 
     //update contract initialization vars
-    pub fn update_contract(&mut self, nft_fee: u128, dev_fee: u128, house_fee: u128, win_multiplier: u128, base_gas: u64) {
+    pub fn update_contract(&mut self, nft_fee: U128, dev_fee: U128, house_fee: U128, win_multiplier: U128, base_gas: U64) {
         assert!(env::predecessor_account_id() == self.owner_id, "Only owner can call this function");
-        self.nft_fee = nft_fee;
-        self.dev_fee = dev_fee;
-        self.house_fee = house_fee;
-        self.win_multiplier = win_multiplier;
-        self.base_gas = base_gas;
+        self.nft_fee = nft_fee.0;
+        self.dev_fee = dev_fee.0;
+        self.house_fee = house_fee.0;
+        self.win_multiplier = win_multiplier.0;
+        self.base_gas = base_gas.0;
     }
 
     //return current contract state
@@ -402,7 +403,7 @@ mod tests {
         while loop_counter < total_count {
 
             start_balance = contract.get_credits(SIGNER_ACCOUNT.clone().to_string()).into();
-            game_won = contract.play(true, BET_AMOUNT);
+            game_won = contract.play(true, U128(BET_AMOUNT));
             end_balance = contract.get_credits(SIGNER_ACCOUNT.clone().to_string()).into();
                 
             if game_won {
@@ -442,7 +443,7 @@ mod tests {
             base_gas: 0
         };
         
-        contract.update_contract(10, 10, 10, 10, 10);
+        contract.update_contract(U128(10), U128(10), U128(10), U128(10), U64(10));
     }
 
     #[test]
@@ -466,7 +467,7 @@ mod tests {
             base_gas: 0
         };
         
-        contract.update_contract(10, 10, 10, 10, 10);
+        contract.update_contract(U128(10), U128(10), U128(10), U128(10), U64(10));
 
         assert_eq!(contract.nft_fee, 10, "nft_fee");
         assert_eq!(contract.dev_fee, 10, "dev_fee");

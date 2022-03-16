@@ -1,7 +1,9 @@
 const nearAPI = require("near-api-js");
 const BN = require("bn.js");
+const BigNumber = require('bignumber.js');
 const fs = require("fs").promises;
 const assert = require("assert").strict;
+
 
 function getConfig(env) {
     switch (env) {
@@ -19,8 +21,8 @@ function getConfig(env) {
 }
 
 const coinContractMethods = {
-    viewMethods: ["get_credits", "get_contract_state"],
-    changeMethods: ["deposit", "retrieve_credits", "play", "retrieve_dev_funds", "retrieve_nft_funds", "update_contract"],
+    viewMethods: ["get_contract_state"],
+    changeMethods: ["get_credits", "deposit", "retrieve_credits", "play", "retrieve_dev_funds", "retrieve_nft_funds", "update_contract", "new"],
 };
 
 const nftContractMethods = {
@@ -152,17 +154,24 @@ async function test() {
 
     // 2. initialize deployed contracts
     await hodler1NftUser.new_default_meta({ args: { owner_id: hodler1.accountId } });
+
+    let nft_fee = "4000";
+    let dev_fee = "500";
+    let house_fee = "500";
+    let win_multiplier = "20000";
     await devCoinUser.new({
         args: {
             owner_id: config.coinContractAccount,
             nft_id: config.nftContractAccount,
-            nft_fee: "4000",
-            dev_fee: "500",
-            house_fee: "500",
-            win_multiplier: "20000",
-            base_gas: nearAPI.utils.format.parseNearAmount("0.0005")
+            nft_fee: nft_fee,
+            dev_fee: dev_fee,
+            house_fee: house_fee,
+            win_multiplier: win_multiplier,
+            base_gas: 10
         }
     });
+
+    console.log("1");
 
     // 2. mints 1 nft for each account
     await hodler1NftUser.nft_mint({ args: { token_id: "1", receiver_id: hodler1.accountId, token_metadata: {} }, amount: "15350000000000000000000" });
@@ -175,26 +184,81 @@ async function test() {
     assert.equal(nftsBlob[1].owner_id, hodler2.accountId);
     assert.equal(nftsBlob[2].owner_id, hodler3.accountId);
 
-    // 3. check initial balance for dev accounts and hodler accounts
-    let devBalance = await devUser.getAccountBalance();
-    let hodler1Balance = await hodler1.getAccountBalance();
-    let hodler2Balance = await hodler2.getAccountBalance();
-    let hodler3Balance = await hodler3.getAccountBalance();
+    console.log("2");
 
-    devBalance = devBalance.total;
-    hodler1Balance = hodler1Balance.total;
-    hodler2Balance = hodler2Balance.total;
-    hodler3Balance = hodler3Balance.total;
+    // 3. check initial balance for dev accounts and hodler accounts
+    let devBalance0 = await devUser.getAccountBalance();
+    let hodler1Balance0 = await hodler1.getAccountBalance();
+    let hodler2Balance0 = await hodler2.getAccountBalance();
+    let hodler3Balance0 = await hodler3.getAccountBalance();
+
+    devBalance0 = devBalance0.total;
+    hodler1Balance0 = hodler1Balance0.total;
+    hodler2Balance0 = hodler2Balance0.total;
+    hodler3Balance0 = hodler3Balance0.total;
+
+    console.log("3");
 
     // 4. test deposit function
     let depositAmount = nearAPI.utils.format.parseNearAmount("1");
+    await hodler1CoinUser.deposit({
+        args: {},
+        amount: depositAmount
+    });
+    await hodler2CoinUser.deposit({
+        args: {},
+        amount: depositAmount
+    });
+    await hodler3CoinUser.deposit({
+        args: {},
+        amount: depositAmount
+    });
 
+    // let hodler1GameBalance0 = await hodler1CoinUser.get_credits({ args: { account_id: "AAA" } });
+    // let hodler2GameBalance0 = await hodler1CoinUser.get_credits({ args: { account_id: hodler2.accountId } });
+    // let hodler3GameBalance0 = await hodler1CoinUser.get_credits({ args: { account_id: hodler3.accountId } });
+    // let devUserGameBalance0 = await hodler1CoinUser.get_credits({ args: { account_id: devUser.accountId } });
+
+    // assert.equal(hodler1GameBalance0, depositAmount);
+    // assert.equal(hodler2GameBalance0, depositAmount);
+    // assert.equal(hodler3GameBalance0, depositAmount);
+    // assert.equal(devUserGameBalance0, "0");
+
+    console.log("4");
 
     // 5. play games and check that balance was added to dev and nft holders in game
+    let betSize = 1000;
+    await hodler1CoinUser.play({ args: { _bet_type: true, bet_size: betSize } })
+    await hodler2CoinUser.play({ args: { _bet_type: true, bet_size: betSize } })
+    await hodler3CoinUser.play({ args: { _bet_type: true, bet_size: betSize } })
+
+    let contractState = await hodler1CoinUser.get_contract_state({ args: {} });
+    //change to BigNumber
+    assert.equal(parseFloat(contractState.dev_balance), 3 * betSize * dev_fee / 100000);
+    assert.equal(parseFloat(contractState.nft_balance), 3 * betSize * nft_fee / 100000);
 
     // 6. test dev distribution
+    let devBalance1 = contractState.dev_balance;
+    let devNearBalance1 = await devUser.getAccountBalance();
+
+    let promiseTransfer = await hodler1CoinUser.retrieve_dev_funds({ args: {} });
+    console.log(promiseTransfer);
+    await hodler1CoinUser.play({ args: { _bet_type: true, bet_size: betSize } })
+
+    let contractState2 = await hodler1CoinUser.get_contract_state({ args: {} });
+    let devBalance2 = contractState2.dev_balance;
+    let devNearBalance2 = await devUser.getAccountBalance();
+
+    console.log(devBalance1);
+    console.log(devBalance2);
+    console.log(devNearBalance1);
+    console.log(devNearBalance2);
+
+    assert.equal(devBalance2, "0");
+    assert.equal(BigNumber(devNearBalance1.total).plus(BigNumber(devBalance1)).comparedTo(BigNumber(devNearBalance2.total)), 0);
 
     // 7. test nft holders distribution
+    let nftBalance1 = contractState.nft_balance;
 
     // 8. test withdrawal function
 
