@@ -1,11 +1,14 @@
+use std::convert::TryInto;
+
 use near_sdk::{ borsh };
 use borsh::{ BorshDeserialize, BorshSerialize };
 use near_sdk::{
-    env, near_bindgen, AccountId, Balance, Promise, PromiseResult, 
+    env, near_bindgen, AccountId, Balance, Promise, PromiseResult,
     ext_contract, serde_json,
     collections::{ UnorderedMap },
     json_types::{ U128, U64 },
 };
+use near_sdk::serde_json::{json};
 use near_contract_standards::non_fungible_token::{Token};
 
 #[global_allocator]
@@ -14,17 +17,6 @@ static ALLOC: near_sdk::wee_alloc::WeeAlloc = near_sdk::wee_alloc::WeeAlloc::INI
 // const ONE_NEAR: u128 = 1_000_000_000_000_000_000_000_000;
 const PROB:u8 = 128;
 const FRACTIONAL_BASE: u128 = 100_000;
-
-#[ext_contract(ext_nft)]
-trait NftFetch {
-    // fn nft_tokens(&self, from_index: Option<U128>, limit: Option<u64>) -> Vec<JsonToken>;
-    fn nft_tokens(&self) -> Vec<Token>;
-}
-
-#[ext_contract(ext_self)]
-trait Selfcallback {
-    fn callback_nft_owners_fetch(&mut self) -> Vec<Promise>;
-}
 
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize)]
@@ -38,7 +30,10 @@ pub struct SlotMachine {
     pub win_multiplier: u128, // base 10e-5
     pub nft_balance: u128,
     pub dev_balance: u128,
-    pub base_gas: u64
+    pub base_gas: u64,
+    pub max_bet: u128,
+    pub min_bet: u128,
+    pub min_balance_fraction: u128 //fraction of min_bet that can be held as minimum balance for user
 }
 
 impl Default for SlotMachine {
@@ -50,7 +45,9 @@ impl Default for SlotMachine {
 #[near_bindgen]
 impl SlotMachine {
     #[init]
-    pub fn new(owner_id: AccountId, nft_id: AccountId, nft_fee: U128, dev_fee: U128, house_fee: U128, win_multiplier: U128, base_gas: U64) -> Self {
+    pub fn new(owner_id: AccountId, nft_id: AccountId, nft_fee: U128, dev_fee: U128,
+               house_fee: U128, win_multiplier: U128, base_gas: U64, max_bet: U128,
+               min_bet: U128, min_balance_fraction: U128) -> Self {
         assert!(env::is_valid_account_id(owner_id.as_bytes()), "Invalid owner account");
         assert!(!env::state_exists(), "Already initialized");
         Self {
@@ -63,7 +60,10 @@ impl SlotMachine {
             win_multiplier: win_multiplier.0, // 20000
             nft_balance: 0,
             dev_balance: 0,
-            base_gas: base_gas.0
+            base_gas: base_gas.0,
+            max_bet: max_bet.0,
+            min_bet: min_bet.0,
+            min_balance_fraction: min_balance_fraction.0
         }
     }
 
@@ -71,6 +71,9 @@ impl SlotMachine {
     pub fn deposit(&mut self) {
         let account_id = env::predecessor_account_id();
         let deposit = env::attached_deposit();
+
+        assert!(deposit > (self.min_bet / self.min_balance_fraction), "Minimum accepted deposit is {}", (self.min_bet / self.min_balance_fraction) );
+
         let mut credits = self.credits.get(&account_id).unwrap_or(0);
         credits = credits + deposit;
         self.credits.insert(&account_id, &credits);
@@ -79,8 +82,7 @@ impl SlotMachine {
     pub fn retrieve_credits(&mut self) -> Promise {
         let account_id = env::predecessor_account_id();
         let credits: u128 = self.credits.get(&account_id).unwrap_or(0).into();
-        let new_credits: u128 = 0;
-        self.credits.insert(&account_id, &new_credits);
+        self.credits.remove(&account_id);
         Promise::new(env::predecessor_account_id()).transfer(credits)
     }
 
@@ -95,6 +97,8 @@ impl SlotMachine {
         let account_id = env::predecessor_account_id();
         let mut credits = self.credits.get(&account_id).unwrap_or(0);
         assert!(credits > bet_size.0, "no credits to play");
+        assert!(bet_size.0 >= self.min_bet, "minimum bet_size is {} yoctonear", self.min_bet);
+        assert!(bet_size.0 <= self.max_bet, "maximum bet_size is {} yoctonear", self.max_bet);
 
         // charge dev and nft fees
         let mut net_bet: u128 = bet_size.0;
@@ -135,48 +139,44 @@ impl SlotMachine {
     pub fn retrieve_nft_funds(&mut self) -> Promise {
         let base_gas: u64 = self.base_gas;
 
-        let nft_account_id = self.nft_id.clone();
-
         //fetch nft holders wallets
-        let nft_tokens = ext_nft::nft_tokens(&nft_account_id, 0, base_gas).then(
-            ext_self::callback_nft_owners_fetch(
-                &env::current_account_id(),
-                0,
-                base_gas
-            ),
+
+        let nft_tokens = Promise::new(self.nft_id.clone()).function_call(
+            b"nft_tokens".to_vec(),
+            json!({}).to_string().as_bytes().to_vec(),
+            0,
+            base_gas / 10,
+        ).then(
+            Promise::new(env::current_account_id()).function_call(
+            b"callback_nft_owners_fetch".to_vec(),
+            json!({}).to_string().as_bytes().to_vec(),
+            0,
+            base_gas,
+            )
         );
         nft_tokens
     }
 
     #[private]
-    pub fn callback_nft_owners_fetch(&mut self) -> Vec<Promise> {
+    pub fn callback_nft_owners_fetch(&mut self) {
         assert_eq!(env::promise_results_count(), 1, "ERR_TOO_MANY_RESULTS");
         match env::promise_result(0) {
             PromiseResult::NotReady => unreachable!(),
             PromiseResult::Successful(value) => {
 
-                let mut nft_owner_count = std::collections::HashMap::<AccountId, u128>::new();
-                let mut owner_count: u128;
-                let mut total_nft_count: u128 = 0;
+                let nft_tokens: Vec<Token> = serde_json::from_slice::<Vec<Token>>(&value).expect("conversion failed");
+                let total_nft_count: u128 = nft_tokens.len().try_into().unwrap();
 
-                let nft_tokens = serde_json::from_slice::<Token>(&value);
-                for val in nft_tokens.iter() {
-                    owner_count = nft_owner_count.get(&val.owner_id).unwrap_or(&0).clone();
-                    nft_owner_count.insert(val.owner_id.clone(), owner_count);
-                    total_nft_count = total_nft_count + 1;
-                }
-
-                let mut promise_vector: Vec<Promise> = Vec::new();
                 let withdrawal_nft_balance = self.nft_balance.clone();
                 self.nft_balance = 0;
                 let piece_nft_balance = withdrawal_nft_balance / total_nft_count;
 
-                for (key, value) in &nft_owner_count {
-                    let promise_var: Promise = Promise::new(key.clone()).transfer(value * piece_nft_balance);
-                    promise_vector.push(promise_var)
+                for val in nft_tokens.iter() {
+                    Promise::new(
+                        val.owner_id.clone()
+                    ).transfer(piece_nft_balance);
                 }
-
-                promise_vector
+                
             },
             PromiseResult::Failed => env::panic(b"ERR_CALL_FAILED"),
         }
@@ -205,6 +205,8 @@ impl SlotMachine {
         state.insert(String::from("nft_balance"), self.nft_balance.to_string());
         state.insert(String::from("dev_balance"), self.dev_balance.to_string());
         state.insert(String::from("base_gas"), self.base_gas.to_string());
+        state.insert(String::from("max_bet"), self.max_bet.to_string());
+        state.insert(String::from("min_bet"), self.min_bet.to_string());
 
         state
     }
@@ -511,6 +513,5 @@ mod tests {
         assert_eq!(contract_copy.get("base_gas").unwrap().clone(), contract.base_gas.to_string());
     }
 
-    // dev funds
-    //how to test transfers to multiple wallets and cross contract calls
+    //functions that use cross contract calls are tested using sim-tests
 }

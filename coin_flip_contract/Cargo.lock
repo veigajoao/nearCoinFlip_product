@@ -381,7 +381,6 @@ dependencies = [
  "near-contract-standards",
  "near-sdk",
  "near-sdk-sim",
- "non-fungible-token",
 ]
 
 [[package]]
@@ -1812,14 +1811,6 @@ checksum = "a8903e5a29a317527874d0402f867152a3d21c908bb0b933e416c65e301d4c36"
 dependencies = [
  "memchr",
  "minimal-lexical",
-]
-
-[[package]]
-name = "non-fungible-token"
-version = "1.1.0"
-dependencies = [
- "near-contract-standards",
- "near-sdk",
 ]
 
 [[package]]
