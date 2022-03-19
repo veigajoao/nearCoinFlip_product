@@ -3,8 +3,7 @@ use std::convert::TryInto;
 use near_sdk::{ borsh };
 use borsh::{ BorshDeserialize, BorshSerialize };
 use near_sdk::{
-    env, near_bindgen, AccountId, Balance, Promise, PromiseResult,
-    ext_contract, serde_json,
+    env, near_bindgen, AccountId, Balance, Promise, PromiseResult, serde_json,
     collections::{ UnorderedMap },
     json_types::{ U128, U64 },
 };
@@ -183,13 +182,16 @@ impl SlotMachine {
     }
 
     //update contract initialization vars
-    pub fn update_contract(&mut self, nft_fee: U128, dev_fee: U128, house_fee: U128, win_multiplier: U128, base_gas: U64) {
+    pub fn update_contract(&mut self, nft_fee: U128, dev_fee: U128, house_fee: U128, win_multiplier: U128, base_gas: U64, max_bet: U128, min_bet: U128, min_balance_fraction: U128) {
         assert!(env::predecessor_account_id() == self.owner_id, "Only owner can call this function");
         self.nft_fee = nft_fee.0;
         self.dev_fee = dev_fee.0;
         self.house_fee = house_fee.0;
         self.win_multiplier = win_multiplier.0;
         self.base_gas = base_gas.0;
+        self.max_bet = max_bet.0;
+        self.min_bet = min_bet.0;
+        self.min_balance_fraction = min_balance_fraction.0;
     }
 
     //return current contract state
@@ -207,6 +209,7 @@ impl SlotMachine {
         state.insert(String::from("base_gas"), self.base_gas.to_string());
         state.insert(String::from("max_bet"), self.max_bet.to_string());
         state.insert(String::from("min_bet"), self.min_bet.to_string());
+        state.insert(String::from("min_balance_fraction"), self.min_balance_fraction .to_string());
 
         state
     }
@@ -260,10 +263,13 @@ mod tests {
             nft_fee: 400, // base 10e-5
             dev_fee: 10, // base 10e-5
             house_fee: 10,
-            win_multiplier: 200000u128, // base 10e-5
+            win_multiplier: 200000, // base 10e-5
             nft_balance: 0,
             dev_balance: 0,
-            base_gas: 0
+            base_gas: 0,
+            max_bet: 100_000_000,
+            min_bet: 100_000,
+            min_balance_fraction: 100
         };
         let user_balance1: u128 = contract.credits.get(&"signer.testnet".to_string()).unwrap_or(0);
         println!("Value before deposit: {}", &user_balance1);
@@ -272,6 +278,32 @@ mod tests {
         println!("Value after deposit: {}", &user_balance2);
         // confirm that we received 1 when calling get_num
         assert_eq!(BASE_DEPOSIT, user_balance2);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_deposit_function_minimum() {
+        // set up the mock context into the testing environment
+        const BASE_DEPOSIT: u128 = 999;
+        let context = get_context(vec![], false, BASE_DEPOSIT.clone(), 0);
+        testing_env!(context);
+        // instantiate a contract variable with the counter at zero
+        let mut contract =  SlotMachine {
+            owner_id: OWNER_ACCOUNT.to_string(),
+            nft_id: NFT_ACCOUNT.to_string(),
+            credits: UnorderedMap::new(b"credits".to_vec()),
+            nft_fee: 400, // base 10e-5
+            dev_fee: 10, // base 10e-5
+            house_fee: 10,
+            win_multiplier: 200000, // base 10e-5
+            nft_balance: 0,
+            dev_balance: 0,
+            base_gas: 0,
+            max_bet: 100_000_000,
+            min_bet: 100_000,
+            min_balance_fraction: 100
+        };
+        contract.deposit();
     }
 
     #[test]
@@ -293,7 +325,10 @@ mod tests {
             win_multiplier: 200000, // base 10e-5
             nft_balance: 0,
             dev_balance: 0,
-            base_gas: 0
+            base_gas: 0,
+            max_bet: 100_000_000,
+            min_bet: 100_000,
+            min_balance_fraction: 100
         };
     
         contract.credits.insert(&SIGNER_ACCOUNT.to_string(), &WITHDRAWAL_AMOUNT);
@@ -325,7 +360,10 @@ mod tests {
             win_multiplier: 200000, // base 10e-5
             nft_balance: 0,
             dev_balance: 0,
-            base_gas: 0
+            base_gas: 0,
+            max_bet: 100_000_000,
+            min_bet: 100_000,
+            min_balance_fraction: 100
         };
         
         const BALANCE_AMOUNT: u128 = 48_000;
@@ -353,7 +391,10 @@ mod tests {
             win_multiplier: 200000, // base 10e-5
             nft_balance: 0,
             dev_balance: 0,
-            base_gas: 0
+            base_gas: 0,
+            max_bet: 100_000_000,
+            min_bet: 100_000,
+            min_balance_fraction: 100
         };
         
         let user_balance: u128 =  contract.get_credits(SIGNER_ACCOUNT.clone().to_string()).into();
@@ -382,13 +423,16 @@ mod tests {
             win_multiplier: 20000, // base 10e-5
             nft_balance: 0,
             dev_balance: 0,
-            base_gas: 0
+            base_gas: 0,
+            max_bet: 100_000_000,
+            min_bet: 100_000,
+            min_balance_fraction: 100
         };
         println!("Game won: {}", 20000 / FRACTIONAL_BASE);
-        const BALANCE_AMOUNT: u128 = 10_000;
+        const BALANCE_AMOUNT: u128 = 100_000_000;
         contract.credits.insert(&SIGNER_ACCOUNT.to_string(), &BALANCE_AMOUNT);
 
-        const BET_AMOUNT: u128 = 100;
+        const BET_AMOUNT: u128 = 100_000;
 
         let mut start_balance: u128;
         let mut end_balance: u128;
@@ -420,6 +464,68 @@ mod tests {
         assert_eq!(contract.dev_balance, dev_fee * total_count, "dev_fee failure");
     }
 
+    #[test]
+    #[should_panic]
+    fn test_play_function_panic_min_bet() {
+        // set up the mock context into the testing environment
+        const BASE_DEPOSIT: u128 = 0;
+        const CONTRACT_BALANCE: u128 = 0;
+        let context = get_context(vec![], false, BASE_DEPOSIT.clone(), CONTRACT_BALANCE.clone());
+        testing_env!(context);
+        // instantiate a contract variable with the counter at zero
+        let mut contract =  SlotMachine {
+            owner_id: OWNER_ACCOUNT.to_string(),
+            nft_id: NFT_ACCOUNT.to_string(),
+            credits: UnorderedMap::new(b"credits".to_vec()),
+            nft_fee: 4000, // base 10e-5
+            dev_fee: 500, // base 10e-5
+            house_fee: 500,
+            win_multiplier: 20000, // base 10e-5
+            nft_balance: 0,
+            dev_balance: 0,
+            base_gas: 0,
+            max_bet: 100_000_000,
+            min_bet: 100_000,
+            min_balance_fraction: 100
+        };
+        const BALANCE_AMOUNT: u128 = 100_000_000;
+        contract.credits.insert(&SIGNER_ACCOUNT.to_string(), &BALANCE_AMOUNT);
+
+        const BET_AMOUNT: u128 = 99_999;
+        contract.play(true, U128(BET_AMOUNT));
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_play_function_panic_max_bet() {
+        // set up the mock context into the testing environment
+        const BASE_DEPOSIT: u128 = 0;
+        const CONTRACT_BALANCE: u128 = 0;
+        let context = get_context(vec![], false, BASE_DEPOSIT.clone(), CONTRACT_BALANCE.clone());
+        testing_env!(context);
+        // instantiate a contract variable with the counter at zero
+        let mut contract =  SlotMachine {
+            owner_id: OWNER_ACCOUNT.to_string(),
+            nft_id: NFT_ACCOUNT.to_string(),
+            credits: UnorderedMap::new(b"credits".to_vec()),
+            nft_fee: 4000, // base 10e-5
+            dev_fee: 500, // base 10e-5
+            house_fee: 500,
+            win_multiplier: 20000, // base 10e-5
+            nft_balance: 0,
+            dev_balance: 0,
+            base_gas: 0,
+            max_bet: 100_000_000,
+            min_bet: 100_000,
+            min_balance_fraction: 100
+        };
+        const BALANCE_AMOUNT: u128 = 100_000_000_000;
+        contract.credits.insert(&SIGNER_ACCOUNT.to_string(), &BALANCE_AMOUNT);
+
+        const BET_AMOUNT: u128 = 100_000_001;
+        contract.play(true, U128(BET_AMOUNT));
+    }
+
     // update contract
     // assert panic when no owner calls
     // assert change when owner calls
@@ -442,10 +548,13 @@ mod tests {
             win_multiplier: 20000, // base 10e-5
             nft_balance: 0,
             dev_balance: 0,
-            base_gas: 0
+            base_gas: 0,
+            max_bet: 100_000_000,
+            min_bet: 100_000,
+            min_balance_fraction: 100
         };
         
-        contract.update_contract(U128(10), U128(10), U128(10), U128(10), U64(10));
+        contract.update_contract(U128(10), U128(11), U128(12), U128(13), U64(14), U128(15), U128(16), U128(17));
     }
 
     #[test]
@@ -466,16 +575,22 @@ mod tests {
             win_multiplier: 20000, // base 10e-5
             nft_balance: 0,
             dev_balance: 0,
-            base_gas: 0
+            base_gas: 0,
+            max_bet: 100_000_000,
+            min_bet: 100_000,
+            min_balance_fraction: 100
         };
         
-        contract.update_contract(U128(10), U128(10), U128(10), U128(10), U64(10));
+        contract.update_contract(U128(10), U128(11), U128(12), U128(13), U64(14), U128(15), U128(16), U128(17));
 
         assert_eq!(contract.nft_fee, 10, "nft_fee");
-        assert_eq!(contract.dev_fee, 10, "dev_fee");
-        assert_eq!(contract.house_fee, 10, "house_fee");
-        assert_eq!(contract.win_multiplier, 10, "win_multiplier");
-        assert_eq!(contract.base_gas, 10, "base_gas");
+        assert_eq!(contract.dev_fee, 11, "dev_fee");
+        assert_eq!(contract.house_fee, 12, "house_fee");
+        assert_eq!(contract.win_multiplier, 13, "win_multiplier");
+        assert_eq!(contract.base_gas, 14, "base_gas");
+        assert_eq!(contract.max_bet, 15, "max_bet");
+        assert_eq!(contract.min_bet, 16, "min_bet");
+        assert_eq!(contract.min_balance_fraction, 17, "min_balance_fraction");
     }
 
     #[test]
@@ -496,7 +611,10 @@ mod tests {
             win_multiplier: 200000, // base 10e-5
             nft_balance: 0,
             dev_balance: 0,
-            base_gas: 0
+            base_gas: 0,
+            max_bet: 100_000_000,
+            min_bet: 100_000,
+            min_balance_fraction: 100
         };
         
         let contract_copy: std::collections::HashMap<String, String> =  contract.get_contract_state();
@@ -511,6 +629,9 @@ mod tests {
         assert_eq!(contract_copy.get("nft_balance").unwrap().clone(), contract.nft_balance.to_string());
         assert_eq!(contract_copy.get("dev_balance").unwrap().clone(), contract.dev_balance.to_string());
         assert_eq!(contract_copy.get("base_gas").unwrap().clone(), contract.base_gas.to_string());
+        assert_eq!(contract_copy.get("max_bet").unwrap().clone(), contract.max_bet.to_string());
+        assert_eq!(contract_copy.get("min_bet").unwrap().clone(), contract.min_bet.to_string());
+        assert_eq!(contract_copy.get("min_balance_fraction").unwrap().clone(), contract.min_balance_fraction.to_string());
     }
 
     //functions that use cross contract calls are tested using sim-tests

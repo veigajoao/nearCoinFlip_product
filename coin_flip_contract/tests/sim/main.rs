@@ -1,4 +1,3 @@
-use std::convert::TryInto;
 pub use near_sdk::json_types::{Base64VecU8, ValidAccountId, WrappedDuration, U128, U64};
 pub use near_sdk::serde_json::json;
 pub use near_sdk_sim::{call, view, deploy, init_simulator, to_yocto, UserAccount, ContractAccount, DEFAULT_GAS, ViewResult};
@@ -8,15 +7,14 @@ near_sdk_sim::lazy_static_include::lazy_static_include_bytes! {
     NFT_BYTES => "../nep_171/target/wasm32-unknown-unknown/release/non_fungible_token.wasm",
 }
 
-//to build standard deployment function
 
-//test to check immutability of state other than player playing
-//revert order nft and dev (one test in each order)
 const NFT_FEE: u128 = 4_000;
 const DEV_FEE: u128 = 500;
 const HOUSE_FEE: u128 = 500;
 const WIN_MULTIPLIER: u128 = 200_000;
 const FRACTIONAL_BASE: u128 = 100_000;
+const MIN_BALANCE_FRACTION: u128 = 100;
+
 
 #[test]
 fn simulate_full_flow_1() {
@@ -65,6 +63,8 @@ fn simulate_full_flow_1() {
         0
     ).assert_success();
 
+    let max_bet: u128 = to_yocto("5");
+    let min_bet: u128 = to_yocto("0.05");
     root.call(
         coin_account.account_id(), 
         "new", 
@@ -74,7 +74,10 @@ fn simulate_full_flow_1() {
                 "dev_fee": DEV_FEE.to_string(),
                 "house_fee": HOUSE_FEE.to_string(),
                 "win_multiplier": WIN_MULTIPLIER.to_string(),
-                "base_gas": DEFAULT_GAS.to_string()
+                "base_gas": DEFAULT_GAS.to_string(),
+                "max_bet": max_bet.to_string(),
+                "min_bet": min_bet.to_string(),
+                "min_balance_fraction": MIN_BALANCE_FRACTION.to_string()
         }).to_string().into_bytes(),
         DEFAULT_GAS, 
         0
@@ -304,8 +307,6 @@ fn simulate_full_flow_1() {
     let initial_consumer2_near_balance: u128 = consumer2.account().unwrap().amount;
     let initial_consumer3_near_balance: u128 = consumer3.account().unwrap().amount;
 
-    println!("A");
-
     consumer3.call(
         coin_account.account_id(), 
         "retrieve_nft_funds", 
@@ -313,8 +314,6 @@ fn simulate_full_flow_1() {
         10000000000000000000, 
         0
     ).assert_success();
-
-    println!("B");
 
     let state_view1: std::collections::HashMap<String, String> = consumer3.view(
         coin_account.account_id(), 
@@ -383,6 +382,8 @@ fn simulate_full_flow_2() {
         0
     ).assert_success();
 
+    let max_bet: u128 = to_yocto("5");
+    let min_bet: u128 = to_yocto("0.05");
     root.call(
         coin_account.account_id(), 
         "new", 
@@ -392,7 +393,10 @@ fn simulate_full_flow_2() {
                 "dev_fee": DEV_FEE.to_string(),
                 "house_fee": HOUSE_FEE.to_string(),
                 "win_multiplier": WIN_MULTIPLIER.to_string(),
-                "base_gas": DEFAULT_GAS.to_string()
+                "base_gas": DEFAULT_GAS.to_string(),
+                "max_bet": max_bet.to_string(),
+                "min_bet": min_bet.to_string(),
+                "min_balance_fraction": MIN_BALANCE_FRACTION.to_string()
         }).to_string().into_bytes(),
         DEFAULT_GAS, 
         0
@@ -649,3 +653,212 @@ fn simulate_full_flow_2() {
     assert_eq!(final_nft_funds, initial_nft_funds);
 
 }
+
+#[test]
+    fn test_preservation_of_state_in_play_function() {
+        //Test deposit/play/withdrawal flow
+        //check that contract state is maitained apart from items tha SHOULD change
+        //for instance, one player depositing cannot alter the state of other players deposits
+
+        let mut genesis = near_sdk_sim::runtime::GenesisConfig::default();
+        genesis.gas_limit = u64::MAX;
+        genesis.gas_price = 0;
+
+        let root = init_simulator(Some(genesis));
+
+        let dev_account = root.create_user("dev_account".to_string(), to_yocto("100"));
+        
+        let consumer1 = root.create_user("consumer1".to_string(), to_yocto("100"));
+        let consumer2 = root.create_user("consumer2".to_string(), to_yocto("100"));
+        let consumer3 = root.create_user("consumer3".to_string(), to_yocto("100"));
+
+        // //deploy contracts
+        let nft_account = root.deploy(
+            &NFT_BYTES,
+            "nft_contract".to_string(),
+            to_yocto("100")
+        );
+
+        let coin_account = root.deploy(
+            &COIN_BYTES,
+            "coin_contract".to_string(),
+            to_yocto("100")
+        );
+
+        root.call(
+            nft_account.account_id(), 
+            "new_default_meta", 
+            &json!({
+                "owner_id": dev_account.account_id()
+            }).to_string().into_bytes(),
+            DEFAULT_GAS, 
+            0
+        ).assert_success();
+
+        let max_bet: u128 = to_yocto("5");
+        let min_bet: u128 = to_yocto("0.05");
+        root.call(
+            coin_account.account_id(), 
+            "new", 
+            &json!({"owner_id": dev_account.account_id(),
+                    "nft_id": nft_account.account_id(),
+                    "nft_fee": NFT_FEE.to_string(),
+                    "dev_fee": DEV_FEE.to_string(),
+                    "house_fee": HOUSE_FEE.to_string(),
+                    "win_multiplier": WIN_MULTIPLIER.to_string(),
+                    "base_gas": DEFAULT_GAS.to_string(),
+                    "max_bet": max_bet.to_string(),
+                    "min_bet": min_bet.to_string(),
+                    "min_balance_fraction": MIN_BALANCE_FRACTION.to_string()
+            }).to_string().into_bytes(),
+            DEFAULT_GAS, 
+            0
+        ).assert_success();
+        
+        //deposit
+        let call_deposit = |consumer: &UserAccount, deposit_amount: u128| {
+            consumer.call(
+                coin_account.account_id(), 
+                "deposit", 
+                &json!({}).to_string().into_bytes(),
+                DEFAULT_GAS, 
+                deposit_amount
+            ).assert_success();
+        };
+
+        let view_balance = |consumer: &UserAccount| -> String {
+            consumer.view(
+                coin_account.account_id(), 
+                "get_credits", 
+                &json!({
+                    "account_id": consumer.account_id()
+                }).to_string().into_bytes(),
+            ).unwrap_json()
+        };
+        
+        let deposit_amount1 = to_yocto("10");
+        let deposit_amount2 = to_yocto("20");
+        let deposit_amount3 = to_yocto("50");
+
+        let consumer1_balance0 = view_balance(&consumer1);
+        let consumer2_balance0 = view_balance(&consumer2);
+        let consumer3_balance0 = view_balance(&consumer3);
+
+        assert_eq!(consumer1_balance0, "0");
+        assert_eq!(consumer2_balance0, "0");
+        assert_eq!(consumer3_balance0, "0");
+
+        call_deposit(&consumer1, deposit_amount1);
+
+        let consumer1_balance1 = view_balance(&consumer1);
+        let consumer2_balance1 = view_balance(&consumer2);
+        let consumer3_balance1 = view_balance(&consumer3);
+
+        assert_eq!(consumer1_balance1, deposit_amount1.to_string());
+        assert_eq!(consumer2_balance1, "0");
+        assert_eq!(consumer3_balance1, "0");
+
+        call_deposit(&consumer2, deposit_amount2);
+
+        let consumer1_balance2 = view_balance(&consumer1);
+        let consumer2_balance2 = view_balance(&consumer2);
+        let consumer3_balance2 = view_balance(&consumer3);
+
+        assert_eq!(consumer1_balance2, deposit_amount1.to_string());
+        assert_eq!(consumer2_balance2, deposit_amount2.to_string());
+        assert_eq!(consumer3_balance2, "0");
+
+        call_deposit(&consumer3, deposit_amount3);
+
+        let consumer1_balance3 = view_balance(&consumer1);
+        let consumer2_balance3 = view_balance(&consumer2);
+        let consumer3_balance3 = view_balance(&consumer3);
+
+        assert_eq!(consumer1_balance3, deposit_amount1.to_string());
+        assert_eq!(consumer2_balance3, deposit_amount2.to_string());
+        assert_eq!(consumer3_balance3, deposit_amount3.to_string());
+
+
+        //play repeatedly and check user balance changes
+        //check immutability of other user balances
+        //check nft and dev balances
+        let bet_size: u128 = to_yocto("1");
+        let game_result: bool;
+
+        let net_bet: u128;
+        let expected_balance: u128;
+
+        let nft_fee: u128;
+        let dev_fee: u128;
+        let house_fee: u128;
+        
+        nft_fee = (bet_size * NFT_FEE) / FRACTIONAL_BASE;
+        dev_fee = (bet_size * DEV_FEE) / FRACTIONAL_BASE;
+        house_fee = (bet_size * HOUSE_FEE) / FRACTIONAL_BASE;
+    
+        let consumer1_balance4: u128 = view_balance(&consumer1).parse().unwrap();
+        let consumer2_balance4: u128 = view_balance(&consumer2).parse().unwrap();
+        let consumer3_balance4: u128 = view_balance(&consumer3).parse().unwrap();
+    
+        game_result = consumer3.call(
+            coin_account.account_id(), 
+            "play", 
+            &json!({
+                "_bet_type": true,
+                "bet_size": bet_size.to_string()
+            }).to_string().into_bytes(),
+            DEFAULT_GAS, 
+            0
+        ).unwrap_json_value().as_bool().unwrap();
+    
+        let consumer1_balance5: u128 = view_balance(&consumer1).parse().unwrap();
+        let consumer2_balance5: u128 = view_balance(&consumer2).parse().unwrap();
+        let consumer3_balance5: u128 = view_balance(&consumer3).parse().unwrap();
+    
+        net_bet = bet_size - nft_fee - dev_fee - house_fee;
+    
+        if game_result {
+            expected_balance = consumer3_balance4 - bet_size + ( (net_bet * WIN_MULTIPLIER) / FRACTIONAL_BASE );
+        } else {
+            expected_balance = consumer3_balance4 - bet_size;
+        }
+    
+        assert_eq!(expected_balance, consumer3_balance5);
+        assert_eq!(consumer2_balance4, consumer2_balance5);
+        assert_eq!(consumer1_balance4, consumer1_balance5);
+
+        //withdrawal funds
+        let consumer1_near_balance0: u128 = consumer1.account().unwrap().amount;
+        let consumer2_near_balance0: u128 = consumer2.account().unwrap().amount;
+        let consumer3_near_balance0: u128 = consumer3.account().unwrap().amount;
+
+        let consumer1_balance6: u128 = view_balance(&consumer1).parse().unwrap();
+        let consumer2_balance6: u128 = view_balance(&consumer2).parse().unwrap();
+        let consumer3_balance6: u128 = view_balance(&consumer3).parse().unwrap();
+            
+        //withdrawal
+        consumer3.call(
+            coin_account.account_id(), 
+            "retrieve_credits", 
+            &json!({}).to_string().into_bytes(),
+            DEFAULT_GAS, 
+            0
+        ).assert_success();
+
+        let consumer1_near_balance1: u128 = consumer1.account().unwrap().amount;
+        let consumer2_near_balance1: u128 = consumer2.account().unwrap().amount;
+        let consumer3_near_balance1: u128 = consumer3.account().unwrap().amount;
+
+        let consumer1_balance7: u128 = view_balance(&consumer1).parse().unwrap();
+        let consumer2_balance7: u128 = view_balance(&consumer2).parse().unwrap();
+        let consumer3_balance7: u128 = view_balance(&consumer3).parse().unwrap();
+
+        assert_eq!(consumer1_balance6, consumer1_balance7);
+        assert_eq!(consumer2_balance6, consumer2_balance7);
+        assert_eq!(0, consumer3_balance7);
+
+        assert_eq!(consumer1_near_balance1, consumer1_near_balance0);
+        assert_eq!(consumer2_near_balance1, consumer2_near_balance0);
+        assert_eq!(consumer3_near_balance1, consumer3_near_balance0 + consumer3_balance6);
+
+    }
