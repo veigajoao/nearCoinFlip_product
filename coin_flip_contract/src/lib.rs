@@ -32,7 +32,10 @@ pub struct SlotMachine {
     pub base_gas: u64,
     pub max_bet: u128,
     pub min_bet: u128,
-    pub min_balance_fraction: u128 //fraction of min_bet that can be held as minimum balance for user
+    pub min_balance_fraction: u128, //fraction of min_bet that can be held as minimum balance for user
+    pub nft_mapping_size: u64,
+    pub nft_total_count: u128,
+    pub panic_button: bool
 }
 
 impl Default for SlotMachine {
@@ -46,7 +49,7 @@ impl SlotMachine {
     #[init]
     pub fn new(owner_id: AccountId, nft_id: AccountId, nft_fee: U128, dev_fee: U128,
                house_fee: U128, win_multiplier: U128, base_gas: U64, max_bet: U128,
-               min_bet: U128, min_balance_fraction: U128) -> Self {
+               min_bet: U128, min_balance_fraction: U128, nft_mapping_size: U64) -> Self {
         assert!(env::is_valid_account_id(owner_id.as_bytes()), "Invalid owner account");
         assert!(!env::state_exists(), "Already initialized");
         Self {
@@ -62,12 +65,16 @@ impl SlotMachine {
             base_gas: base_gas.0,
             max_bet: max_bet.0,
             min_bet: min_bet.0,
-            min_balance_fraction: min_balance_fraction.0
+            min_balance_fraction: min_balance_fraction.0,
+            nft_mapping_size: nft_mapping_size.0,
+            nft_total_count: 0,
+            panic_button: false
         }
     }
 
     #[payable]
     pub fn deposit(&mut self) {
+        assert!(!self.panic_button, "Panic mode is on, contract has been paused by owner");
         let account_id = env::predecessor_account_id();
         let deposit = env::attached_deposit();
 
@@ -79,6 +86,7 @@ impl SlotMachine {
     }
     
     pub fn retrieve_credits(&mut self) -> Promise {
+        assert!(!self.panic_button, "Panic mode is on, contract has been paused by owner");
         let account_id = env::predecessor_account_id();
         let credits: u128 = self.credits.get(&account_id).unwrap_or(0).into();
         self.credits.remove(&account_id);
@@ -91,6 +99,7 @@ impl SlotMachine {
 
     //bet_type heads == true, tails == false
     pub fn play(&mut self, _bet_type: bool, bet_size: U128) -> bool {
+        assert!(!self.panic_button, "Panic mode is on, contract has been paused by owner");
 
         // check that user has credits
         let account_id = env::predecessor_account_id();
@@ -125,6 +134,7 @@ impl SlotMachine {
 
     //retrieve dev funds function
     pub fn retrieve_dev_funds(&mut self) -> Promise {
+        assert!(!self.panic_button, "Panic mode is on, contract has been paused by owner");
         let dev_account_id = self.owner_id.clone();
 
         let withdrawal_dev_balance = self.dev_balance.clone();
@@ -136,44 +146,112 @@ impl SlotMachine {
 
     //adapt to cross contract calls
     pub fn retrieve_nft_funds(&mut self) -> Promise {
-        let base_gas: u64 = self.base_gas;
-
+        assert!(!self.panic_button, "Panic mode is on, contract has been paused by owner");
         //fetch nft holders wallets
 
         let nft_tokens = Promise::new(self.nft_id.clone()).function_call(
+            b"nft_total_supply".to_vec(),
+            json!({}).to_string().as_bytes().to_vec(),
+            0,
+            self.base_gas / 100,
+        )
+        .then(Promise::new(self.nft_id.clone()).function_call(
             b"nft_tokens".to_vec(),
             json!({}).to_string().as_bytes().to_vec(),
             0,
-            base_gas / 10,
-        ).then(
+            self.base_gas / 100,
+        ))
+        .then(
             Promise::new(env::current_account_id()).function_call(
             b"callback_nft_owners_fetch".to_vec(),
-            json!({}).to_string().as_bytes().to_vec(),
+            json!({
+                "previous_vector": Vec::<Token>::new(),
+                "previous_len": U128(0),
+                "previous_gas": U64(self.base_gas - 3 * (self.base_gas / 100))
+            }).to_string().as_bytes().to_vec(),
             0,
-            base_gas,
+            self.base_gas - 3 * (self.base_gas / 100),
             )
         );
         nft_tokens
     }
 
     #[private]
-    pub fn callback_nft_owners_fetch(&mut self) {
+    pub fn callback_nft_owners_fetch(&mut self, mut previous_vector: Vec<Token>, previous_len: U128, previous_gas: U64) {
         assert_eq!(env::promise_results_count(), 1, "ERR_TOO_MANY_RESULTS");
         match env::promise_result(0) {
             PromiseResult::NotReady => unreachable!(),
             PromiseResult::Successful(value) => {
 
-                let nft_tokens: Vec<Token> = serde_json::from_slice::<Vec<Token>>(&value).expect("conversion failed");
-                let total_nft_count: u128 = nft_tokens.len().try_into().unwrap();
+                let mut nft_tokens: serde_json::Value = serde_json::from_slice(&value).unwrap();
+                
+                let mut new_vector: Vec<Token> = Vec::<Token>::new();
+                let mut val_obj: &serde_json::map::Map<String, serde_json::Value>;
+                match nft_tokens {
+                    serde_json::Value::Array(nft_tokens_vec) => {
+                        for val in nft_tokens_vec.into_iter() {
+                            val_obj = val.as_object().unwrap();
+                            new_vector.push(Token {
+                                token_id: val["token_id"].as_str().unwrap().to_string(),
+                                owner_id: val["owner_id"].as_str().unwrap().to_string(),
+                                metadata: None,
+                                approved_account_ids: None,
+                            });
+                        }
+                    },
+                    _ => panic!("wrong import")
+                }
+                
+                previous_vector.append(&mut new_vector);
 
-                let withdrawal_nft_balance = self.nft_balance.clone();
-                self.nft_balance = 0;
-                let piece_nft_balance = withdrawal_nft_balance / total_nft_count;
+                let new_len: u128 = previous_vector.len().try_into().unwrap();
 
-                for val in nft_tokens.iter() {
-                    Promise::new(
-                        val.owner_id.clone()
-                    ).transfer(piece_nft_balance);
+                if new_len >= self.nft_total_count {
+                // if new_len >= 0 {
+                    //send funds over
+                    let total_nft_count: u128 = previous_vector.len().try_into().unwrap();
+                
+                    let withdrawal_nft_balance = self.nft_balance.clone();
+                    self.nft_balance = 0;
+                    let piece_nft_balance = withdrawal_nft_balance / total_nft_count;
+
+                    for val in previous_vector.iter() {
+                        Promise::new(
+                            val.owner_id.clone()
+                        ).transfer(piece_nft_balance);
+                    }
+                } else {
+
+                    //another callback
+                    let from_index: u64;
+                    if previous_len == U128(0) {
+                        from_index = 0;
+                    } else {
+                        let index_format: usize = previous_len.0.try_into().unwrap();
+                        from_index = previous_vector[index_format - 1].token_id.parse().unwrap();
+                    }
+
+                    Promise::new(self.nft_id.clone()).function_call(
+                        b"nft_tokens".to_vec(),
+                        json!({
+                            "from_index": Some(from_index),
+                            "limit": Some(self.nft_mapping_size)
+                        }).to_string().as_bytes().to_vec(),
+                        0,
+                        previous_gas.0 - (self.base_gas / 100)
+                    ).then(
+                        Promise::new(env::current_account_id()).function_call(
+                        b"callback_nft_owners_fetch".to_vec(),
+                        json!({
+                            "previous_vector": previous_vector,
+                            "previous_len": U128(new_len.into()),
+                            "previous_gas": U64(previous_gas.0 - 2_000_000_000)
+                        }).to_string().as_bytes().to_vec(),
+                        0,
+                        previous_gas.0 - (self.base_gas / 100)
+                        )
+                    );
+
                 }
                 
             },
@@ -181,8 +259,23 @@ impl SlotMachine {
         }
     }
 
+    #[private]
+    pub fn callback_nft_total_supply_fetch(&mut self) {
+        assert_eq!(env::promise_results_count(), 1, "ERR_TOO_MANY_RESULTS");
+        match env::promise_result(0) {
+            PromiseResult::NotReady => unreachable!(),
+            PromiseResult::Successful(value) => {
+
+                self.nft_total_count = serde_json::from_slice::<U128>(&value).expect("conversion failed").0;
+               
+            },
+            PromiseResult::Failed => env::panic(b"ERR_CALL_FAILED"),
+        }
+    }
+
+
     //update contract initialization vars
-    pub fn update_contract(&mut self, nft_fee: U128, dev_fee: U128, house_fee: U128, win_multiplier: U128, base_gas: U64, max_bet: U128, min_bet: U128, min_balance_fraction: U128) {
+    pub fn update_contract(&mut self, nft_fee: U128, dev_fee: U128, house_fee: U128, win_multiplier: U128, base_gas: U64, max_bet: U128, min_bet: U128, min_balance_fraction: U128, nft_mapping_size:U64) {
         assert!(env::predecessor_account_id() == self.owner_id, "Only owner can call this function");
         self.nft_fee = nft_fee.0;
         self.dev_fee = dev_fee.0;
@@ -192,6 +285,7 @@ impl SlotMachine {
         self.max_bet = max_bet.0;
         self.min_bet = min_bet.0;
         self.min_balance_fraction = min_balance_fraction.0;
+        self.nft_mapping_size = nft_mapping_size.0;
     }
 
     //return current contract state
@@ -209,9 +303,24 @@ impl SlotMachine {
         state.insert(String::from("base_gas"), self.base_gas.to_string());
         state.insert(String::from("max_bet"), self.max_bet.to_string());
         state.insert(String::from("min_bet"), self.min_bet.to_string());
-        state.insert(String::from("min_balance_fraction"), self.min_balance_fraction .to_string());
-
+        state.insert(String::from("min_balance_fraction"), self.min_balance_fraction.to_string());
+        state.insert(String::from("nft_mapping_size"), self.nft_mapping_size.to_string());
+        state.insert(String::from("nft_total_count"), self.nft_total_count.to_string());
+        
         state
+    }
+
+    pub fn emergency_panic(&mut self, withdrawal_balance: U128) -> Promise {
+        assert!(env::predecessor_account_id() == self.owner_id, "Only owner can call this function");
+        if self.panic_button {
+            self.panic_button = false;
+        } else {
+            self.panic_button = true;
+        }
+        
+        Promise::new(
+            self.owner_id.clone()
+        ).transfer(withdrawal_balance.0)
     }
 }
 
@@ -269,7 +378,10 @@ mod tests {
             base_gas: 0,
             max_bet: 100_000_000,
             min_bet: 100_000,
-            min_balance_fraction: 100
+            min_balance_fraction: 100,
+            nft_mapping_size: 30,
+            nft_total_count: 0,
+            panic_button: false
         };
         let user_balance1: u128 = contract.credits.get(&"signer.testnet".to_string()).unwrap_or(0);
         println!("Value before deposit: {}", &user_balance1);
@@ -301,7 +413,10 @@ mod tests {
             base_gas: 0,
             max_bet: 100_000_000,
             min_bet: 100_000,
-            min_balance_fraction: 100
+            min_balance_fraction: 100,
+            nft_mapping_size: 30,
+            nft_total_count: 0,
+            panic_button: false
         };
         contract.deposit();
     }
@@ -328,7 +443,10 @@ mod tests {
             base_gas: 0,
             max_bet: 100_000_000,
             min_bet: 100_000,
-            min_balance_fraction: 100
+            min_balance_fraction: 100,
+            nft_mapping_size: 30,
+            nft_total_count: 0,
+            panic_button: false
         };
     
         contract.credits.insert(&SIGNER_ACCOUNT.to_string(), &WITHDRAWAL_AMOUNT);
@@ -363,7 +481,10 @@ mod tests {
             base_gas: 0,
             max_bet: 100_000_000,
             min_bet: 100_000,
-            min_balance_fraction: 100
+            min_balance_fraction: 100,
+            nft_mapping_size: 30,
+            nft_total_count: 0,
+            panic_button: false
         };
         
         const BALANCE_AMOUNT: u128 = 48_000;
@@ -394,7 +515,10 @@ mod tests {
             base_gas: 0,
             max_bet: 100_000_000,
             min_bet: 100_000,
-            min_balance_fraction: 100
+            min_balance_fraction: 100,
+            nft_mapping_size: 30,
+            nft_total_count: 0,
+            panic_button: false
         };
         
         let user_balance: u128 =  contract.get_credits(SIGNER_ACCOUNT.clone().to_string()).into();
@@ -426,7 +550,10 @@ mod tests {
             base_gas: 0,
             max_bet: 100_000_000,
             min_bet: 100_000,
-            min_balance_fraction: 100
+            min_balance_fraction: 100,
+            nft_mapping_size: 30,
+            nft_total_count: 0,
+            panic_button: false
         };
         println!("Game won: {}", 20000 / FRACTIONAL_BASE);
         const BALANCE_AMOUNT: u128 = 100_000_000;
@@ -486,7 +613,10 @@ mod tests {
             base_gas: 0,
             max_bet: 100_000_000,
             min_bet: 100_000,
-            min_balance_fraction: 100
+            min_balance_fraction: 100,
+            nft_mapping_size: 30,
+            nft_total_count: 0,
+            panic_button: false
         };
         const BALANCE_AMOUNT: u128 = 100_000_000;
         contract.credits.insert(&SIGNER_ACCOUNT.to_string(), &BALANCE_AMOUNT);
@@ -517,7 +647,10 @@ mod tests {
             base_gas: 0,
             max_bet: 100_000_000,
             min_bet: 100_000,
-            min_balance_fraction: 100
+            min_balance_fraction: 100,
+            nft_mapping_size: 30,
+            nft_total_count: 0,
+            panic_button: false
         };
         const BALANCE_AMOUNT: u128 = 100_000_000_000;
         contract.credits.insert(&SIGNER_ACCOUNT.to_string(), &BALANCE_AMOUNT);
@@ -551,10 +684,13 @@ mod tests {
             base_gas: 0,
             max_bet: 100_000_000,
             min_bet: 100_000,
-            min_balance_fraction: 100
+            min_balance_fraction: 100, 
+            nft_mapping_size: 30,
+            nft_total_count: 0,
+            panic_button: false
         };
         
-        contract.update_contract(U128(10), U128(11), U128(12), U128(13), U64(14), U128(15), U128(16), U128(17));
+        contract.update_contract(U128(10), U128(11), U128(12), U128(13), U64(14), U128(15), U128(16), U128(17), U64(18));
     }
 
     #[test]
@@ -578,10 +714,13 @@ mod tests {
             base_gas: 0,
             max_bet: 100_000_000,
             min_bet: 100_000,
-            min_balance_fraction: 100
+            min_balance_fraction: 100,
+            nft_mapping_size: 30,
+            nft_total_count: 0,
+            panic_button: false
         };
         
-        contract.update_contract(U128(10), U128(11), U128(12), U128(13), U64(14), U128(15), U128(16), U128(17));
+        contract.update_contract(U128(10), U128(11), U128(12), U128(13), U64(14), U128(15), U128(16), U128(17), U64(18));
 
         assert_eq!(contract.nft_fee, 10, "nft_fee");
         assert_eq!(contract.dev_fee, 11, "dev_fee");
@@ -591,6 +730,8 @@ mod tests {
         assert_eq!(contract.max_bet, 15, "max_bet");
         assert_eq!(contract.min_bet, 16, "min_bet");
         assert_eq!(contract.min_balance_fraction, 17, "min_balance_fraction");
+        assert_eq!(contract.nft_mapping_size, 18, "nft_mapping_size");
+        
     }
 
     #[test]
@@ -614,7 +755,10 @@ mod tests {
             base_gas: 0,
             max_bet: 100_000_000,
             min_bet: 100_000,
-            min_balance_fraction: 100
+            min_balance_fraction: 100,
+            nft_mapping_size: 30,
+            nft_total_count: 0,
+            panic_button: false
         };
         
         let contract_copy: std::collections::HashMap<String, String> =  contract.get_contract_state();
@@ -632,6 +776,9 @@ mod tests {
         assert_eq!(contract_copy.get("max_bet").unwrap().clone(), contract.max_bet.to_string());
         assert_eq!(contract_copy.get("min_bet").unwrap().clone(), contract.min_bet.to_string());
         assert_eq!(contract_copy.get("min_balance_fraction").unwrap().clone(), contract.min_balance_fraction.to_string());
+        assert_eq!(contract_copy.get("nft_mapping_size").unwrap().clone(), contract.nft_mapping_size.to_string());
+        assert_eq!(contract_copy.get("nft_total_count").unwrap().clone(), contract.nft_total_count.to_string());
+        
     }
 
     //functions that use cross contract calls are tested using sim-tests

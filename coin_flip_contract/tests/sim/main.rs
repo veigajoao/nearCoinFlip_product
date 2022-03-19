@@ -1,3 +1,4 @@
+use std::convert::TryInto;
 pub use near_sdk::json_types::{Base64VecU8, ValidAccountId, WrappedDuration, U128, U64};
 pub use near_sdk::serde_json::json;
 pub use near_sdk_sim::{call, view, deploy, init_simulator, to_yocto, UserAccount, ContractAccount, DEFAULT_GAS, ViewResult};
@@ -14,6 +15,7 @@ const HOUSE_FEE: u128 = 500;
 const WIN_MULTIPLIER: u128 = 200_000;
 const FRACTIONAL_BASE: u128 = 100_000;
 const MIN_BALANCE_FRACTION: u128 = 100;
+const NFT_MAPPING_SIZE: u128 = 30;
 
 
 #[test]
@@ -74,10 +76,11 @@ fn simulate_full_flow_1() {
                 "dev_fee": DEV_FEE.to_string(),
                 "house_fee": HOUSE_FEE.to_string(),
                 "win_multiplier": WIN_MULTIPLIER.to_string(),
-                "base_gas": DEFAULT_GAS.to_string(),
+                "base_gas": (u64::MAX / 5).to_string(),
                 "max_bet": max_bet.to_string(),
                 "min_bet": min_bet.to_string(),
-                "min_balance_fraction": MIN_BALANCE_FRACTION.to_string()
+                "min_balance_fraction": MIN_BALANCE_FRACTION.to_string(),
+                "nft_mapping_size": NFT_MAPPING_SIZE.to_string()
         }).to_string().into_bytes(),
         DEFAULT_GAS, 
         0
@@ -311,7 +314,7 @@ fn simulate_full_flow_1() {
         coin_account.account_id(), 
         "retrieve_nft_funds", 
         &json!({}).to_string().into_bytes(), 
-        10000000000000000000, 
+        10_000_000_000_000_000_000, 
         0
     ).assert_success();
 
@@ -393,10 +396,11 @@ fn simulate_full_flow_2() {
                 "dev_fee": DEV_FEE.to_string(),
                 "house_fee": HOUSE_FEE.to_string(),
                 "win_multiplier": WIN_MULTIPLIER.to_string(),
-                "base_gas": DEFAULT_GAS.to_string(),
+                "base_gas": (u64::MAX / 5).to_string(),
                 "max_bet": max_bet.to_string(),
                 "min_bet": min_bet.to_string(),
-                "min_balance_fraction": MIN_BALANCE_FRACTION.to_string()
+                "min_balance_fraction": MIN_BALANCE_FRACTION.to_string(),
+                "nft_mapping_size": NFT_MAPPING_SIZE.to_string()
         }).to_string().into_bytes(),
         DEFAULT_GAS, 
         0
@@ -593,7 +597,7 @@ fn simulate_full_flow_2() {
         coin_account.account_id(), 
         "retrieve_nft_funds", 
         &json!({}).to_string().into_bytes(), 
-        10000000000000000000, 
+        10_000_000_000_000_000_000, 
         0
     ).assert_success();
 
@@ -655,7 +659,7 @@ fn simulate_full_flow_2() {
 }
 
 #[test]
-    fn test_preservation_of_state_in_play_function() {
+fn test_preservation_of_state_in_play_function() {
         //Test deposit/play/withdrawal flow
         //check that contract state is maitained apart from items tha SHOULD change
         //for instance, one player depositing cannot alter the state of other players deposits
@@ -706,10 +710,11 @@ fn simulate_full_flow_2() {
                     "dev_fee": DEV_FEE.to_string(),
                     "house_fee": HOUSE_FEE.to_string(),
                     "win_multiplier": WIN_MULTIPLIER.to_string(),
-                    "base_gas": DEFAULT_GAS.to_string(),
+                    "base_gas": (u64::MAX / 5).to_string(),
                     "max_bet": max_bet.to_string(),
                     "min_bet": min_bet.to_string(),
-                    "min_balance_fraction": MIN_BALANCE_FRACTION.to_string()
+                    "min_balance_fraction": MIN_BALANCE_FRACTION.to_string(),
+                    "nft_mapping_size": NFT_MAPPING_SIZE.to_string()
             }).to_string().into_bytes(),
             DEFAULT_GAS, 
             0
@@ -862,3 +867,180 @@ fn simulate_full_flow_2() {
         assert_eq!(consumer3_near_balance1, consumer3_near_balance0 + consumer3_balance6);
 
     }
+
+
+#[test]
+fn simulate_n_nft_holders() {
+    //Test full flow from deploying app (without dev retrieval)
+    //n different users mint nfts
+    //1 user deposits balance into the game
+    //1 user plays the game multiple times
+    //contract owner retrieves nft balance
+    //check if contract handles the volume
+
+    let mut genesis = near_sdk_sim::runtime::GenesisConfig::default();
+    genesis.gas_limit = u64::MAX;
+    genesis.gas_price = 0;
+
+    const N: u128 = 10;
+
+    let root = init_simulator(Some(genesis));
+
+    let dev_account = root.create_user("dev_account".to_string(), to_yocto("100"));
+    
+    let consumer = root.create_user("consumer".to_string(), to_yocto("100000"));
+
+    // //deploy contracts
+    let nft_account = root.deploy(
+        &NFT_BYTES,
+        "nft_contract".to_string(),
+        to_yocto("100")
+    );
+
+    let coin_account = root.deploy(
+        &COIN_BYTES,
+        "coin_contract".to_string(),
+        to_yocto("100")
+    );
+
+    root.call(
+        nft_account.account_id(), 
+        "new_default_meta", 
+        &json!({
+            "owner_id": dev_account.account_id()
+        }).to_string().into_bytes(),
+        DEFAULT_GAS, 
+        0
+    ).assert_success();
+
+    let max_bet: u128 = to_yocto("100000000");
+    let min_bet: u128 = to_yocto("0.05");
+    root.call(
+        coin_account.account_id(), 
+        "new", 
+        &json!({"owner_id": dev_account.account_id(),
+                "nft_id": nft_account.account_id(),
+                "nft_fee": NFT_FEE.to_string(),
+                "dev_fee": DEV_FEE.to_string(),
+                "house_fee": HOUSE_FEE.to_string(),
+                "win_multiplier": WIN_MULTIPLIER.to_string(),
+                "base_gas": (u64::MAX / 5).to_string(),
+                "max_bet": max_bet.to_string(),
+                "min_bet": min_bet.to_string(),
+                "min_balance_fraction": MIN_BALANCE_FRACTION.to_string(),
+                "nft_mapping_size": NFT_MAPPING_SIZE.to_string()
+        }).to_string().into_bytes(),
+        DEFAULT_GAS, 
+        0
+    ).assert_success();
+
+    //user 1 gets 2 NFTs, user 2 gets 1, user 3 gets none
+    let nft_mint_token = | account: String, token_id: String | {
+        dev_account.call(
+            nft_account.account_id(), 
+            "nft_mint", 
+            &json!({
+                "token_id": token_id,
+                "receiver_id": account,
+                "token_metadata": {}
+            }).to_string().into_bytes(),
+            DEFAULT_GAS, 
+            5870000000000000000000
+        ).assert_success();
+    };
+
+    let mut account_vector: Vec<UserAccount> = Vec::new();
+    let mut counter: u128 = 0;
+    let mut account_id: String;
+    while counter < N {
+        account_id = format!("consumer{}", counter);
+        account_vector.push(root.create_user(account_id.clone(), to_yocto("100")));
+        nft_mint_token(account_id, counter.to_string());
+        counter += 1;
+    }
+    
+    //consumer plays multiple times
+    //deposit
+    let deposit_amount = to_yocto("10000");
+
+    consumer.call(
+        coin_account.account_id(), 
+        "deposit", 
+        &json!({}).to_string().into_bytes(),
+        DEFAULT_GAS, 
+        deposit_amount
+    ).assert_success();
+
+    //play repeatedly
+    let bet_size: u128 = to_yocto("1000");
+    let mut consumer_balance: u128;
+
+    loop {
+     
+        consumer.call(
+            coin_account.account_id(), 
+            "play", 
+            &json!({
+                "_bet_type": true,
+                "bet_size": bet_size.to_string()
+            }).to_string().into_bytes(),
+            DEFAULT_GAS, 
+            0
+        ).unwrap_json_value().as_bool().unwrap();
+    
+        consumer_balance = ViewResult::unwrap_json::<String>(&consumer.view(
+            coin_account.account_id(), 
+            "get_credits", 
+            &json!({
+                "account_id": consumer.account_id()
+            }).to_string().into_bytes(),
+        )).parse().unwrap();
+
+        if consumer_balance <= bet_size {
+            break
+        }
+
+    }
+
+    //withdrawal nft funds
+
+    let retrieved_state: std::collections::HashMap<String, String> = consumer.view(
+        coin_account.account_id(), 
+        "get_contract_state", 
+        &json!({}).to_string().into_bytes(),
+    ).unwrap_json();
+
+    let nft_balance: u128 = retrieved_state.get("nft_balance").unwrap().parse().unwrap();
+    let ideal_share: u128 = nft_balance / N;
+
+    let get_near_balance = |account: &UserAccount| -> u128 {
+        account.account().unwrap().amount
+    };
+
+    let mut initial_balances_vector: Vec<u128> = Vec::new();
+    for item in account_vector.iter() {
+        initial_balances_vector.push(get_near_balance(item));
+    }
+
+    println!("A");
+    root.call(
+        coin_account.account_id(), 
+        "retrieve_nft_funds", 
+        &json!({}).to_string().into_bytes(), 
+        10_000_000_000_000_000_000, 
+        0
+    ).assert_success();
+    println!("B");
+
+    let mut final_balances_vector: Vec<u128> = Vec::new();
+    for item in account_vector.iter() {
+        final_balances_vector.push(get_near_balance(item));
+    }
+
+    let mut index_counter: usize = 0;
+    while index_counter < N.try_into().unwrap() {
+        assert_eq!(initial_balances_vector[index_counter] + ideal_share, final_balances_vector[index_counter]);
+        index_counter += 1;
+    }
+
+}
