@@ -33,7 +33,7 @@ Log in with both accounts using the NEAR CLI.
 ### Deploy the contract  
 To deploy the contract, you'll run the following script in your command line
 ```
-deploy <accountToDeploy> <binaryLocation>
+nft-coinflip deploy <accountToDeploy> <binaryLocation>
 ```  
 Substitute accountToDeploy for the contract address you created  
 Substitute binaryLocation for the absolute path to the contract's compiled binaries  
@@ -41,7 +41,7 @@ Substitute binaryLocation for the absolute path to the contract's compiled binar
 ### Initialize the contract  
 Before the contract can be used, you'll need to setup its configuration:
 ```
-initialize <ownerAccount> <contractAccount> <nftFee> <devFee> <houseFee> <winMultiplier> <maxBet> <minBet> <minBalanceFraction>
+nft-coinflip initialize <ownerAccount> <contractAccount> <nftFee> <devFee> <houseFee> <winMultiplier> <maxBet> <minBet> <minBalanceFraction>
 ```
 ownerAccount is the owner account you created to manage the game  
 contractAccount is the account to which the contract was deployed  
@@ -56,7 +56,7 @@ minBalanceFraction represents the minimum amount of balance that a user is allow
 ### retrive dev fees  
 To retrieve the dev fees collected from players to the owners account, use this call:
 ```
-retrieve-dev <ownerAccount> <contractAccount>
+nft-coinflip retrieve-dev <ownerAccount> <contractAccount>
 ```
 ownerAccount is the owner account you created to manage the game  
 contractAccount is the account to which the contract was deployed  
@@ -64,7 +64,7 @@ contractAccount is the account to which the contract was deployed
 ### retrive fees for NFT holders
 To retrieve the fees collect to nft holders and distribute it to them, use this call:
 ```
-retrieve-nft <ownerAccount> <contractAccount> <nftContractAccount>
+nft-coinflip retrieve-nft <ownerAccount> <contractAccount> <nftContractAccount>
 ```
 ownerAccount is the owner account you created to manage the game  
 contractAccount is the account to which the contract was deployed 
@@ -73,7 +73,7 @@ nftContractAccount is the account to which the NFT contract is deployed
 ### read current contract state  
 To read the contract's state, containing its initialization values and nft_holders and dev balances, use this call:
 ```
-get-state <ownerAccount> <contractAccount>
+nft-coinflip get-state <ownerAccount> <contractAccount>
 ```
 ownerAccount is the owner account you created to manage the game  
 contractAccount is the account to which the contract was deployed 
@@ -81,7 +81,7 @@ contractAccount is the account to which the contract was deployed
 ### update initialization state  
 If you need to change any of the initialization values, use this call:
 ```
-update-state <ownerAccount> <contractAccount> <nftFee> <devFee> <houseFee> <winMultiplier> <maxBet> <minBet> <minBalanceFraction>
+nft-coinflip update-state <ownerAccount> <contractAccount> <nftFee> <devFee> <houseFee> <winMultiplier> <maxBet> <minBet> <minBalanceFraction>
 ```
 ownerAccount is the owner account you created to manage the game  
 contractAccount is the account to which the contract was deployed  
@@ -96,7 +96,7 @@ minBalanceFraction represents the minimum amount of balance that a user is allow
 ### Activate panic mode
 In case you believe the contract is under attack or want to pause it for any reason, use this call:
 ```
-emergency-panic <ownerAccount> <contractAccount> <withdrawalAmount>
+nft-coinflip emergency-panic <ownerAccount> <contractAccount> <withdrawalAmount>
 ```
 ownerAccount is the owner account you created to manage the game  
 contractAccount is the account to which the contract was deployed  
