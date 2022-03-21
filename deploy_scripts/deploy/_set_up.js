@@ -41,5 +41,6 @@ let nftDistributionArgument = nftList.map((item) => {
 });
 
 console.log(nftDistributionArgument);
+
 //send transaction to distribute funds
 let sendCall = connector.callFunction("contract.address");

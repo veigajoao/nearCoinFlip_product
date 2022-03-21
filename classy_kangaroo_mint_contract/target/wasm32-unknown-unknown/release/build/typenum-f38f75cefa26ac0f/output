@@ -1,2 +1,0 @@
-cargo:rustc-env=TYPENUM_BUILD_CONSTS=/home/jveiga/CKcoinFlip/coin_flip/classy_kangaroo_mint_contract/target/wasm32-unknown-unknown/release/build/typenum-f38f75cefa26ac0f/out/consts.rs
-cargo:rustc-env=TYPENUM_BUILD_OP=/home/jveiga/CKcoinFlip/coin_flip/classy_kangaroo_mint_contract/target/wasm32-unknown-unknown/release/build/typenum-f38f75cefa26ac0f/out/op.rs
