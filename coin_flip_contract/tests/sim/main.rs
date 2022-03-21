@@ -1,7 +1,10 @@
 use std::convert::TryInto;
 pub use near_sdk::json_types::{Base64VecU8, ValidAccountId, WrappedDuration, U128, U64};
-pub use near_sdk::serde_json::json;
-pub use near_sdk_sim::{call, view, deploy, init_simulator, to_yocto, UserAccount, ContractAccount, DEFAULT_GAS, ViewResult};
+pub use near_sdk::serde_json::{json, value::Value};
+pub use near_sdk_sim::{call, view, deploy, init_simulator, to_yocto, UserAccount, 
+    ContractAccount, DEFAULT_GAS, ViewResult, ExecutionResult};
+pub use near_sdk::AccountId;
+use near_contract_standards::non_fungible_token::{ Token, TokenId };
 
 near_sdk_sim::lazy_static_include::lazy_static_include_bytes! {
     COIN_BYTES => "./target/wasm32-unknown-unknown/release/classy_kangaroo_coin_flip.wasm",
@@ -15,8 +18,9 @@ const HOUSE_FEE: u128 = 500;
 const WIN_MULTIPLIER: u128 = 200_000;
 const FRACTIONAL_BASE: u128 = 100_000;
 const MIN_BALANCE_FRACTION: u128 = 100;
-const NFT_MAPPING_SIZE: u128 = 30;
+const NFT_MAPPING_SIZE: u128 = 50;
 
+const GAS_ATTACHMENT: u64 = 300_000_000_000_000;
 
 #[test]
 fn simulate_full_flow_1() {
@@ -61,7 +65,7 @@ fn simulate_full_flow_1() {
         &json!({
             "owner_id": dev_account.account_id()
         }).to_string().into_bytes(),
-        DEFAULT_GAS, 
+        GAS_ATTACHMENT, 
         0
     ).assert_success();
 
@@ -76,13 +80,13 @@ fn simulate_full_flow_1() {
                 "dev_fee": DEV_FEE.to_string(),
                 "house_fee": HOUSE_FEE.to_string(),
                 "win_multiplier": WIN_MULTIPLIER.to_string(),
-                "base_gas": (u64::MAX / 5).to_string(),
+                "base_gas": GAS_ATTACHMENT.to_string(),
                 "max_bet": max_bet.to_string(),
                 "min_bet": min_bet.to_string(),
                 "min_balance_fraction": MIN_BALANCE_FRACTION.to_string(),
                 "nft_mapping_size": NFT_MAPPING_SIZE.to_string()
         }).to_string().into_bytes(),
-        DEFAULT_GAS, 
+        GAS_ATTACHMENT, 
         0
     ).assert_success();
 
@@ -96,7 +100,7 @@ fn simulate_full_flow_1() {
                 "receiver_id": account,
                 "token_metadata": {}
             }).to_string().into_bytes(),
-            DEFAULT_GAS, 
+            GAS_ATTACHMENT, 
             5870000000000000000000
         ).assert_success();
     };
@@ -115,7 +119,7 @@ fn simulate_full_flow_1() {
         coin_account.account_id(), 
         "deposit", 
         &json!({}).to_string().into_bytes(),
-        DEFAULT_GAS, 
+        GAS_ATTACHMENT, 
         deposit_amount
     ).assert_success();
 
@@ -185,11 +189,9 @@ fn simulate_full_flow_1() {
                 "_bet_type": true,
                 "bet_size": bet_size.to_string()
             }).to_string().into_bytes(),
-            DEFAULT_GAS, 
+            GAS_ATTACHMENT, 
             0
         ).unwrap_json_value().as_bool().unwrap();
-    
-        println!("game won? {}", game_result);
     
         consumer_balance2 = ViewResult::unwrap_json::<String>(&consumer3.view(
             coin_account.account_id(), 
@@ -242,7 +244,7 @@ fn simulate_full_flow_1() {
         coin_account.account_id(), 
         "retrieve_credits", 
         &json!({}).to_string().into_bytes(),
-        DEFAULT_GAS, 
+        GAS_ATTACHMENT, 
         0
     ).assert_success();
 
@@ -276,7 +278,7 @@ fn simulate_full_flow_1() {
         coin_account.account_id(), 
         "retrieve_dev_funds", 
         &json!({}).to_string().into_bytes(),
-        DEFAULT_GAS, 
+        GAS_ATTACHMENT, 
         0
     ).assert_success();
 
@@ -313,8 +315,10 @@ fn simulate_full_flow_1() {
     consumer3.call(
         coin_account.account_id(), 
         "retrieve_nft_funds", 
-        &json!({}).to_string().into_bytes(), 
-        10_000_000_000_000_000_000, 
+        &json!({
+            "distribution_list": vec![&consumer1.account_id, &consumer1.account_id, &consumer2.account_id]
+        }).to_string().into_bytes(), 
+        GAS_ATTACHMENT, 
         0
     ).assert_success();
 
@@ -381,7 +385,7 @@ fn simulate_full_flow_2() {
         &json!({
             "owner_id": dev_account.account_id()
         }).to_string().into_bytes(),
-        DEFAULT_GAS, 
+        GAS_ATTACHMENT, 
         0
     ).assert_success();
 
@@ -396,13 +400,13 @@ fn simulate_full_flow_2() {
                 "dev_fee": DEV_FEE.to_string(),
                 "house_fee": HOUSE_FEE.to_string(),
                 "win_multiplier": WIN_MULTIPLIER.to_string(),
-                "base_gas": (u64::MAX / 5).to_string(),
+                "base_gas": GAS_ATTACHMENT.to_string(),
                 "max_bet": max_bet.to_string(),
                 "min_bet": min_bet.to_string(),
                 "min_balance_fraction": MIN_BALANCE_FRACTION.to_string(),
                 "nft_mapping_size": NFT_MAPPING_SIZE.to_string()
         }).to_string().into_bytes(),
-        DEFAULT_GAS, 
+        GAS_ATTACHMENT, 
         0
     ).assert_success();
 
@@ -416,7 +420,7 @@ fn simulate_full_flow_2() {
                 "receiver_id": account,
                 "token_metadata": {}
             }).to_string().into_bytes(),
-            DEFAULT_GAS, 
+            GAS_ATTACHMENT, 
             5870000000000000000000
         ).assert_success();
     };
@@ -435,7 +439,7 @@ fn simulate_full_flow_2() {
         coin_account.account_id(), 
         "deposit", 
         &json!({}).to_string().into_bytes(),
-        DEFAULT_GAS, 
+        GAS_ATTACHMENT, 
         deposit_amount
     ).assert_success();
 
@@ -505,11 +509,10 @@ fn simulate_full_flow_2() {
                 "_bet_type": true,
                 "bet_size": bet_size.to_string()
             }).to_string().into_bytes(),
-            DEFAULT_GAS, 
+            GAS_ATTACHMENT, 
             0
         ).unwrap_json_value().as_bool().unwrap();
-    
-        println!("game won? {}", game_result);
+
     
         consumer_balance2 = ViewResult::unwrap_json::<String>(&consumer3.view(
             coin_account.account_id(), 
@@ -562,7 +565,7 @@ fn simulate_full_flow_2() {
         coin_account.account_id(), 
         "retrieve_credits", 
         &json!({}).to_string().into_bytes(),
-        DEFAULT_GAS, 
+        GAS_ATTACHMENT, 
         0
     ).assert_success();
 
@@ -596,8 +599,10 @@ fn simulate_full_flow_2() {
     consumer3.call(
         coin_account.account_id(), 
         "retrieve_nft_funds", 
-        &json!({}).to_string().into_bytes(), 
-        10_000_000_000_000_000_000, 
+        &json!({
+            "distribution_list": vec![&consumer1.account_id, &consumer1.account_id, &consumer2.account_id]
+        }).to_string().into_bytes(), 
+        GAS_ATTACHMENT, 
         0
     ).assert_success();
 
@@ -637,7 +642,7 @@ fn simulate_full_flow_2() {
         coin_account.account_id(), 
         "retrieve_dev_funds", 
         &json!({}).to_string().into_bytes(),
-        DEFAULT_GAS, 
+        GAS_ATTACHMENT, 
         0
     ).assert_success();
 
@@ -695,7 +700,7 @@ fn test_preservation_of_state_in_play_function() {
             &json!({
                 "owner_id": dev_account.account_id()
             }).to_string().into_bytes(),
-            DEFAULT_GAS, 
+            GAS_ATTACHMENT, 
             0
         ).assert_success();
 
@@ -710,13 +715,13 @@ fn test_preservation_of_state_in_play_function() {
                     "dev_fee": DEV_FEE.to_string(),
                     "house_fee": HOUSE_FEE.to_string(),
                     "win_multiplier": WIN_MULTIPLIER.to_string(),
-                    "base_gas": (u64::MAX / 5).to_string(),
+                    "base_gas": GAS_ATTACHMENT.to_string(),
                     "max_bet": max_bet.to_string(),
                     "min_bet": min_bet.to_string(),
                     "min_balance_fraction": MIN_BALANCE_FRACTION.to_string(),
                     "nft_mapping_size": NFT_MAPPING_SIZE.to_string()
             }).to_string().into_bytes(),
-            DEFAULT_GAS, 
+            GAS_ATTACHMENT, 
             0
         ).assert_success();
         
@@ -726,7 +731,7 @@ fn test_preservation_of_state_in_play_function() {
                 coin_account.account_id(), 
                 "deposit", 
                 &json!({}).to_string().into_bytes(),
-                DEFAULT_GAS, 
+                GAS_ATTACHMENT, 
                 deposit_amount
             ).assert_success();
         };
@@ -812,7 +817,7 @@ fn test_preservation_of_state_in_play_function() {
                 "_bet_type": true,
                 "bet_size": bet_size.to_string()
             }).to_string().into_bytes(),
-            DEFAULT_GAS, 
+            GAS_ATTACHMENT, 
             0
         ).unwrap_json_value().as_bool().unwrap();
     
@@ -846,7 +851,7 @@ fn test_preservation_of_state_in_play_function() {
             coin_account.account_id(), 
             "retrieve_credits", 
             &json!({}).to_string().into_bytes(),
-            DEFAULT_GAS, 
+            GAS_ATTACHMENT, 
             0
         ).assert_success();
 
@@ -882,7 +887,7 @@ fn simulate_n_nft_holders() {
     genesis.gas_limit = u64::MAX;
     genesis.gas_price = 0;
 
-    const N: u128 = 10;
+    const N: u128 = 550;
 
     let root = init_simulator(Some(genesis));
 
@@ -909,7 +914,7 @@ fn simulate_n_nft_holders() {
         &json!({
             "owner_id": dev_account.account_id()
         }).to_string().into_bytes(),
-        DEFAULT_GAS, 
+        GAS_ATTACHMENT, 
         0
     ).assert_success();
 
@@ -924,50 +929,54 @@ fn simulate_n_nft_holders() {
                 "dev_fee": DEV_FEE.to_string(),
                 "house_fee": HOUSE_FEE.to_string(),
                 "win_multiplier": WIN_MULTIPLIER.to_string(),
-                "base_gas": (u64::MAX / 5).to_string(),
+                "base_gas": GAS_ATTACHMENT.to_string(),
                 "max_bet": max_bet.to_string(),
                 "min_bet": min_bet.to_string(),
                 "min_balance_fraction": MIN_BALANCE_FRACTION.to_string(),
                 "nft_mapping_size": NFT_MAPPING_SIZE.to_string()
         }).to_string().into_bytes(),
-        DEFAULT_GAS, 
+        GAS_ATTACHMENT, 
         0
     ).assert_success();
 
     //user 1 gets 2 NFTs, user 2 gets 1, user 3 gets none
-    let nft_mint_token = | account: String, token_id: String | {
+    let nft_mint_token = | account: String, token_id: u128 | {
         dev_account.call(
             nft_account.account_id(), 
             "nft_mint", 
             &json!({
-                "token_id": token_id,
+                "token_id": U128(token_id),
                 "receiver_id": account,
                 "token_metadata": {}
             }).to_string().into_bytes(),
-            DEFAULT_GAS, 
+            GAS_ATTACHMENT, 
             5870000000000000000000
         ).assert_success();
     };
 
     let mut account_vector: Vec<UserAccount> = Vec::new();
-    let mut counter: u128 = 0;
+    let mut counter: u128 = 1;
     let mut account_id: String;
     while counter < N {
         account_id = format!("consumer{}", counter);
         account_vector.push(root.create_user(account_id.clone(), to_yocto("100")));
-        nft_mint_token(account_id, counter.to_string());
+        nft_mint_token(account_id, counter);
         counter += 1;
     }
+
+    let mut account_arr: Vec<String> = Vec::<String>::new();
+
+    for item in account_vector.iter() {
+        account_arr.push(item.account_id.clone());
+    }
     
-    //consumer plays multiple times
-    //deposit
     let deposit_amount = to_yocto("10000");
 
     consumer.call(
         coin_account.account_id(), 
         "deposit", 
         &json!({}).to_string().into_bytes(),
-        DEFAULT_GAS, 
+        GAS_ATTACHMENT, 
         deposit_amount
     ).assert_success();
 
@@ -984,7 +993,7 @@ fn simulate_n_nft_holders() {
                 "_bet_type": true,
                 "bet_size": bet_size.to_string()
             }).to_string().into_bytes(),
-            DEFAULT_GAS, 
+            GAS_ATTACHMENT, 
             0
         ).unwrap_json_value().as_bool().unwrap();
     
@@ -1011,7 +1020,7 @@ fn simulate_n_nft_holders() {
     ).unwrap_json();
 
     let nft_balance: u128 = retrieved_state.get("nft_balance").unwrap().parse().unwrap();
-    let ideal_share: u128 = nft_balance / N;
+    let ideal_share: u128 = nft_balance / (N - 1);
 
     let get_near_balance = |account: &UserAccount| -> u128 {
         account.account().unwrap().amount
@@ -1022,15 +1031,17 @@ fn simulate_n_nft_holders() {
         initial_balances_vector.push(get_near_balance(item));
     }
 
-    println!("A");
     root.call(
         coin_account.account_id(), 
         "retrieve_nft_funds", 
-        &json!({}).to_string().into_bytes(), 
-        10_000_000_000_000_000_000, 
+        &json!({
+            "distribution_list": account_arr
+        }).to_string().into_bytes(), 
+        GAS_ATTACHMENT, 
         0
-    ).assert_success();
-    println!("B");
+    );
+
+    // println!("{:#?}", exe_result);
 
     let mut final_balances_vector: Vec<u128> = Vec::new();
     for item in account_vector.iter() {
@@ -1038,8 +1049,10 @@ fn simulate_n_nft_holders() {
     }
 
     let mut index_counter: usize = 0;
-    while index_counter < N.try_into().unwrap() {
-        assert_eq!(initial_balances_vector[index_counter] + ideal_share, final_balances_vector[index_counter]);
+    println!("{}", ideal_share);
+    while index_counter < (N - 1).try_into().unwrap() {
+        println!("{}", account_vector[index_counter].account_id);
+        assert_eq!(initial_balances_vector[index_counter] + ideal_share, final_balances_vector[index_counter], "{}", account_vector[index_counter].account_id );
         index_counter += 1;
     }
 
