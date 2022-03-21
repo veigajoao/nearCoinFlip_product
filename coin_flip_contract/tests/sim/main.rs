@@ -4,7 +4,6 @@ pub use near_sdk::serde_json::{json, value::Value};
 pub use near_sdk_sim::{call, view, deploy, init_simulator, to_yocto, UserAccount, 
     ContractAccount, DEFAULT_GAS, ViewResult, ExecutionResult};
 pub use near_sdk::AccountId;
-use near_contract_standards::non_fungible_token::{ Token, TokenId };
 
 near_sdk_sim::lazy_static_include::lazy_static_include_bytes! {
     COIN_BYTES => "./target/wasm32-unknown-unknown/release/classy_kangaroo_coin_flip.wasm",
@@ -274,7 +273,7 @@ fn simulate_full_flow_1() {
 
     let initial_dev_near_balance: u128 = dev_account.account().unwrap().amount;
 
-    consumer3.call(
+    dev_account.call(
         coin_account.account_id(), 
         "retrieve_dev_funds", 
         &json!({}).to_string().into_bytes(),
@@ -312,7 +311,7 @@ fn simulate_full_flow_1() {
     let initial_consumer2_near_balance: u128 = consumer2.account().unwrap().amount;
     let initial_consumer3_near_balance: u128 = consumer3.account().unwrap().amount;
 
-    consumer3.call(
+    dev_account.call(
         coin_account.account_id(), 
         "retrieve_nft_funds", 
         &json!({
@@ -596,7 +595,7 @@ fn simulate_full_flow_2() {
     let initial_consumer2_near_balance: u128 = consumer2.account().unwrap().amount;
     let initial_consumer3_near_balance: u128 = consumer3.account().unwrap().amount;
 
-    consumer3.call(
+    dev_account.call(
         coin_account.account_id(), 
         "retrieve_nft_funds", 
         &json!({
@@ -638,7 +637,7 @@ fn simulate_full_flow_2() {
 
     let initial_dev_near_balance: u128 = dev_account.account().unwrap().amount;
 
-    consumer3.call(
+    dev_account.call(
         coin_account.account_id(), 
         "retrieve_dev_funds", 
         &json!({}).to_string().into_bytes(),
@@ -1031,7 +1030,7 @@ fn simulate_n_nft_holders() {
         initial_balances_vector.push(get_near_balance(item));
     }
 
-    root.call(
+    dev_account.call(
         coin_account.account_id(), 
         "retrieve_nft_funds", 
         &json!({

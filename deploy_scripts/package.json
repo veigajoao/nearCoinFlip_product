@@ -3,7 +3,10 @@
     "version": "1.0.0",
     "type": "module",
     "description": "testing environment for near-nft-coin-flip in integration with NEP-171 contract in sandbox environment",
-    "main": "index.js",
+    "main": "bin/index.js",
+    "bin": {
+        "nft-coinflip": "./bin/index.js"
+    },
     "scripts": {
         "test": "mocha"
     },

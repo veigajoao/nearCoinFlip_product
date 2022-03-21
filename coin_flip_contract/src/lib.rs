@@ -3,12 +3,10 @@ use std::convert::TryInto;
 use near_sdk::{ borsh };
 use borsh::{ BorshDeserialize, BorshSerialize };
 use near_sdk::{
-    env, near_bindgen, AccountId, Balance, Promise, PromiseResult, serde_json,
+    env, near_bindgen, AccountId, Balance, Promise,
     collections::{ UnorderedMap },
-    json_types::{ U128, U64 },
+    json_types::{ U128 },
 };
-use near_sdk::serde_json::{json};
-use near_contract_standards::non_fungible_token::{Token};
 
 #[global_allocator]
 static ALLOC: near_sdk::wee_alloc::WeeAlloc = near_sdk::wee_alloc::WeeAlloc::INIT;
@@ -208,7 +206,6 @@ mod tests {
     const CONTRACT_ACCOUNT: &str = "contract.testnet";
     const SIGNER_ACCOUNT: &str = "signer.testnet";
     const OWNER_ACCOUNT: &str = "owner.testnet";
-    const NFT_ACCOUNT: &str = "nft.testnet";
 
     fn get_context(input: Vec<u8>, is_view: bool, attached_deposit: u128, account_balance: u128) -> VMContext {
         VMContext {
