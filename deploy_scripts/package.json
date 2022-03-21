@@ -16,6 +16,7 @@
         "bignumber": "^1.1.0",
         "bignumber.js": "^9.0.2",
         "bn.js": "^5.2.0",
-        "near-api-js": "^0.44.2"
+        "near-api-js": "^0.44.2",
+        "yargs": "^17.4.0"
     }
 }

@@ -74,7 +74,6 @@ fn simulate_full_flow_1() {
         coin_account.account_id(), 
         "new", 
         &json!({"owner_id": dev_account.account_id(),
-                "nft_id": nft_account.account_id(),
                 "nft_fee": NFT_FEE.to_string(),
                 "dev_fee": DEV_FEE.to_string(),
                 "house_fee": HOUSE_FEE.to_string(),
@@ -83,7 +82,6 @@ fn simulate_full_flow_1() {
                 "max_bet": max_bet.to_string(),
                 "min_bet": min_bet.to_string(),
                 "min_balance_fraction": MIN_BALANCE_FRACTION.to_string(),
-                "nft_mapping_size": NFT_MAPPING_SIZE.to_string()
         }).to_string().into_bytes(),
         GAS_ATTACHMENT, 
         0
