@@ -18,6 +18,7 @@ After that you can install the command line interface by opening the "deploy_scr
 ```
 npm install -g .
 ```   
+
   
 ### Wallet setup  
 Before starting the deployment you must have 2 addresses for use:  
