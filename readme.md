@@ -63,7 +63,7 @@ ownerAccount is the owner account you created to manage the game
 contractAccount is the account to which the contract was deployed  
   
 ### retrive fees for NFT holders
-To retrieve the fees collect to nft holders and distribute it to them, use this call:
+To retrieve the fees collected to nft holders and distribute it to them, use this call:
 ```
 nft-coinflip retrieve-nft <ownerAccount> <contractAccount> <nftContractAccount>
 ```
