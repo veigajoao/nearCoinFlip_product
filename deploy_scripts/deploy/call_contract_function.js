@@ -33,7 +33,8 @@ async function emergencyPanic(ownerAccount, contractAccount, withdrawalAmount) {
     const result = await contract.emergency_panic({
             withdrawal_balance: withdrawalAmount.toString()
         },
-        "300000000000000"
+        "300000000000000",
+        "1"
     );
 
     console.log(result);
@@ -45,7 +46,7 @@ async function getContractState(ownerAccount, contractAccount) {
     const contract = await buildContractObject(ownerAccount, contractAccount);
 
     const result = await contract.get_contract_state({},
-        "300000000000000"
+        "300000000000000",
     );
 
     console.log(result);
@@ -68,7 +69,8 @@ async function updateContract(ownerAccount, contractAccount, params) {
 
     const result = await contract.update_contract(
         namedArgs,
-        "300000000000000"
+        "300000000000000",
+        "1"
     );
 
     console.log(result);
@@ -80,7 +82,8 @@ async function retrieveDevFunds(ownerAccount, contractAccount) {
     const contract = await buildContractObject(ownerAccount, contractAccount);
 
     const result = await contract.retrieve_dev_funds({},
-        "300000000000000"
+        "300000000000000",
+        "1"
     );
 
     console.log(result);
@@ -107,7 +110,8 @@ async function retrieveNftFunds(ownerAccount, contractAccount, nftContractAccoun
     await contract.retrieve_nft_funds({
             distribution_list: nftList
         },
-        "30000000000000000"
+        "30000000000000000",
+        "1"
     );
 
     console.log("retrieval successfull");

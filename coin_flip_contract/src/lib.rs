@@ -4,7 +4,7 @@ use near_sdk::{ borsh };
 use borsh::{ BorshDeserialize, BorshSerialize };
 use near_sdk::{
     env, near_bindgen, AccountId, Balance, Promise,
-    collections::{ UnorderedMap },
+    collections::{ LookupMap },
     json_types::{ U128 },
     utils::assert_one_yocto
 };
@@ -20,7 +20,7 @@ const FRACTIONAL_BASE: u128 = 100_000;
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct SlotMachine {
     pub owner_id: AccountId,
-    pub credits: UnorderedMap<AccountId, Balance>,
+    pub credits: LookupMap<AccountId, Balance>,
     pub nft_fee: u128, // base 10e-5
     pub dev_fee: u128, // base 10e-5
     pub house_fee: u128,
@@ -49,7 +49,7 @@ impl SlotMachine {
         assert!(!env::state_exists(), "Already initialized");
         Self {
             owner_id,
-            credits: UnorderedMap::new(b"credits".to_vec()),
+            credits: LookupMap::new(b"credits".to_vec()),
             nft_fee: nft_fee.0, // 4000
             dev_fee: dev_fee.0, // 500
             house_fee: house_fee.0, // 500
@@ -248,7 +248,7 @@ mod tests {
         // instantiate a contract variable with the counter at zero
         let mut contract =  SlotMachine {
             owner_id: OWNER_ACCOUNT.to_string(),
-            credits: UnorderedMap::new(b"credits".to_vec()),
+            credits: LookupMap::new(b"credits".to_vec()),
             nft_fee: 400, // base 10e-5
             dev_fee: 10, // base 10e-5
             house_fee: 10,
@@ -279,7 +279,7 @@ mod tests {
         // instantiate a contract variable with the counter at zero
         let mut contract =  SlotMachine {
             owner_id: OWNER_ACCOUNT.to_string(),
-            credits: UnorderedMap::new(b"credits".to_vec()),
+            credits: LookupMap::new(b"credits".to_vec()),
             nft_fee: 400, // base 10e-5
             dev_fee: 10, // base 10e-5
             house_fee: 10,
@@ -305,7 +305,7 @@ mod tests {
         // instantiate a contract variable with the counter at zero
         let mut contract =  SlotMachine {
             owner_id: OWNER_ACCOUNT.to_string(),
-            credits: UnorderedMap::new(b"credits".to_vec()),
+            credits: LookupMap::new(b"credits".to_vec()),
             nft_fee: 400, // base 10e-5
             dev_fee: 10, // base 10e-5
             house_fee: 10,
@@ -339,7 +339,7 @@ mod tests {
         // instantiate a contract variable with the counter at zero
         let mut contract =  SlotMachine {
             owner_id: OWNER_ACCOUNT.to_string(),
-            credits: UnorderedMap::new(b"credits".to_vec()),
+            credits: LookupMap::new(b"credits".to_vec()),
             nft_fee: 400, // base 10e-5
             dev_fee: 10, // base 10e-5
             house_fee: 10,
@@ -369,7 +369,7 @@ mod tests {
         // instantiate a contract variable with the counter at zero
         let contract =  SlotMachine {
             owner_id: OWNER_ACCOUNT.to_string(),
-            credits: UnorderedMap::new(b"credits".to_vec()),
+            credits: LookupMap::new(b"credits".to_vec()),
             nft_fee: 400, // base 10e-5
             dev_fee: 10, // base 10e-5
             house_fee: 10,
@@ -400,7 +400,7 @@ mod tests {
         // instantiate a contract variable with the counter at zero
         let mut contract =  SlotMachine {
             owner_id: OWNER_ACCOUNT.to_string(),
-            credits: UnorderedMap::new(b"credits".to_vec()),
+            credits: LookupMap::new(b"credits".to_vec()),
             nft_fee: 4000, // base 10e-5
             dev_fee: 500, // base 10e-5
             house_fee: 500,
@@ -459,7 +459,7 @@ mod tests {
         // instantiate a contract variable with the counter at zero
         let mut contract =  SlotMachine {
             owner_id: OWNER_ACCOUNT.to_string(),
-            credits: UnorderedMap::new(b"credits".to_vec()),
+            credits: LookupMap::new(b"credits".to_vec()),
             nft_fee: 4000, // base 10e-5
             dev_fee: 500, // base 10e-5
             house_fee: 500,
@@ -489,7 +489,7 @@ mod tests {
         // instantiate a contract variable with the counter at zero
         let mut contract =  SlotMachine {
             owner_id: OWNER_ACCOUNT.to_string(),
-            credits: UnorderedMap::new(b"credits".to_vec()),
+            credits: LookupMap::new(b"credits".to_vec()),
             nft_fee: 4000, // base 10e-5
             dev_fee: 500, // base 10e-5
             house_fee: 500,
@@ -522,7 +522,7 @@ mod tests {
         // instantiate a contract variable with the counter at zero
         let mut contract =  SlotMachine {
             owner_id: OWNER_ACCOUNT.to_string(),
-            credits: UnorderedMap::new(b"credits".to_vec()),
+            credits: LookupMap::new(b"credits".to_vec()),
             nft_fee: 4000, // base 10e-5
             dev_fee: 500, // base 10e-5
             house_fee: 500,
@@ -548,7 +548,7 @@ mod tests {
         // instantiate a contract variable with the counter at zero
         let mut contract =  SlotMachine {
             owner_id: SIGNER_ACCOUNT.to_string(),
-            credits: UnorderedMap::new(b"credits".to_vec()),
+            credits: LookupMap::new(b"credits".to_vec()),
             nft_fee: 4000, // base 10e-5
             dev_fee: 500, // base 10e-5
             house_fee: 500,
@@ -583,7 +583,7 @@ mod tests {
         // instantiate a contract variable with the counter at zero
         let contract =  SlotMachine {
             owner_id: OWNER_ACCOUNT.to_string(),
-            credits: UnorderedMap::new(b"credits".to_vec()),
+            credits: LookupMap::new(b"credits".to_vec()),
             nft_fee: 400, // base 10e-5
             dev_fee: 10, // base 10e-5
             house_fee: 10,
