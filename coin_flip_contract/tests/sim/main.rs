@@ -276,7 +276,7 @@ fn simulate_full_flow_1() {
         "retrieve_dev_funds", 
         &json!({}).to_string().into_bytes(),
         GAS_ATTACHMENT, 
-        0
+        1
     ).assert_success();
 
     let state_view1: std::collections::HashMap<String, String> = consumer3.view(
@@ -291,7 +291,7 @@ fn simulate_full_flow_1() {
     let final_dev_near_balance: u128 = dev_account.account().unwrap().amount;
 
     assert_eq!(final_dev_funds, 0);
-    assert_eq!(final_dev_near_balance, initial_dev_near_balance + initial_dev_funds);
+    assert_eq!(final_dev_near_balance + 1, initial_dev_near_balance + initial_dev_funds);
     assert_eq!(final_nft_funds, initial_nft_funds);
     assert!(final_nft_funds > 0);
 
@@ -316,7 +316,7 @@ fn simulate_full_flow_1() {
             "distribution_list": vec![&consumer1.account_id, &consumer1.account_id, &consumer2.account_id]
         }).to_string().into_bytes(), 
         GAS_ATTACHMENT, 
-        0
+        1
     ).assert_success();
 
     let state_view1: std::collections::HashMap<String, String> = consumer3.view(
@@ -600,7 +600,7 @@ fn simulate_full_flow_2() {
             "distribution_list": vec![&consumer1.account_id, &consumer1.account_id, &consumer2.account_id]
         }).to_string().into_bytes(), 
         GAS_ATTACHMENT, 
-        0
+        1
     ).assert_success();
 
     let state_view1: std::collections::HashMap<String, String> = consumer3.view(
@@ -640,7 +640,7 @@ fn simulate_full_flow_2() {
         "retrieve_dev_funds", 
         &json!({}).to_string().into_bytes(),
         GAS_ATTACHMENT, 
-        0
+        1
     ).assert_success();
 
     let state_view1: std::collections::HashMap<String, String> = consumer3.view(
@@ -655,7 +655,7 @@ fn simulate_full_flow_2() {
     let final_dev_near_balance: u128 = dev_account.account().unwrap().amount;
 
     assert_eq!(final_dev_funds, 0);
-    assert_eq!(final_dev_near_balance, initial_dev_near_balance + initial_dev_funds);
+    assert_eq!(final_dev_near_balance + 1, initial_dev_near_balance + initial_dev_funds);
     assert_eq!(final_nft_funds, initial_nft_funds);
 
 }
@@ -1035,7 +1035,7 @@ fn simulate_n_nft_holders() {
             "distribution_list": account_arr
         }).to_string().into_bytes(), 
         GAS_ATTACHMENT, 
-        0
+        1
     );
 
     // println!("{:#?}", exe_result);

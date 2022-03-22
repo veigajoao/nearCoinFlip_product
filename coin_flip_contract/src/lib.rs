@@ -6,6 +6,7 @@ use near_sdk::{
     env, near_bindgen, AccountId, Balance, Promise,
     collections::{ UnorderedMap },
     json_types::{ U128 },
+    utils::assert_one_yocto
 };
 
 #[global_allocator]
@@ -123,9 +124,11 @@ impl SlotMachine {
     }
 
     //retrieve dev funds function
+    #[payable]
     pub fn retrieve_dev_funds(&mut self) -> Promise {
         assert!(!self.panic_button, "Panic mode is on, contract has been paused by owner");
         assert!(env::predecessor_account_id() == self.owner_id, "Only owner can call this function");
+        assert_one_yocto();
 
         let dev_account_id = self.owner_id.clone();
         let withdrawal_dev_balance = self.dev_balance.clone();
@@ -135,9 +138,11 @@ impl SlotMachine {
     }
 
     //adapt to cross contract calls
+    #[payable]
     pub fn retrieve_nft_funds(&mut self, distribution_list: Vec<String>) {
         assert!(!self.panic_button, "Panic mode is on, contract has been paused by owner");
         assert!(env::predecessor_account_id() == self.owner_id, "Only owner can call this function");
+        assert_one_yocto();
 
         let withdrawal_nft_balance = self.nft_balance.clone();
         self.nft_balance = 0;
@@ -152,8 +157,11 @@ impl SlotMachine {
     }
 
     //update contract initialization vars
+    #[payable]
     pub fn update_contract(&mut self, nft_fee: U128, dev_fee: U128, house_fee: U128, win_multiplier: U128, max_bet: U128, min_bet: U128, min_balance_fraction: U128) {
         assert!(env::predecessor_account_id() == self.owner_id, "Only owner can call this function");
+        assert_one_yocto();
+
         self.nft_fee = nft_fee.0;
         self.dev_fee = dev_fee.0;
         self.house_fee = house_fee.0;
@@ -181,8 +189,11 @@ impl SlotMachine {
         state
     }
 
+    #[payable]
     pub fn emergency_panic(&mut self, withdrawal_balance: U128) -> Promise {
         assert!(env::predecessor_account_id() == self.owner_id, "Only owner can call this function");
+        assert_one_yocto();
+
         if self.panic_button {
             self.panic_button = false;
         } else {
@@ -530,7 +541,7 @@ mod tests {
     #[test]
     fn test_update_contract_function() {
         // set up the mock context into the testing environment
-        const BASE_DEPOSIT: u128 = 0;
+        const BASE_DEPOSIT: u128 = 1;
         const CONTRACT_BALANCE: u128 = 0;
         let context = get_context(vec![], false, BASE_DEPOSIT.clone(), CONTRACT_BALANCE.clone());
         testing_env!(context);
