@@ -96,10 +96,8 @@ async function retrieveNftFunds(ownerAccount, contractAccount, nftContractAccoun
     const { near, account } = await loginNear(ownerAccount);
 
     const tokenCount = await account.viewFunction(nftContractAccount, "nft_total_supply", {});
-    console.log("tokenCount: " + tokenCount.toString());
 
     let nftCount = parseInt(tokenCount);
-    console.log("nft: " + nftCount.toString());
 
     let pagination = 10;
     let currentSize = 0;
@@ -107,19 +105,17 @@ async function retrieveNftFunds(ownerAccount, contractAccount, nftContractAccoun
     let fetchResult;
     while (currentSize < nftCount) {
         fetchResult = await account.viewFunction(nftContractAccount, "nft_tokens", { from_index: currentSize.toString(), limit: pagination })
-        console.log(fetchResult);
 
-        nftList.push(...result);
+        nftList.push(...fetchResult);
         currentSize = nftList.length;
-        console.log(nftList);
     }
 
-    console.log(await contract.retrieve_nft_funds({
+    await contract.retrieve_nft_funds({
             distribution_list: nftList
         },
         "30000000000000000",
         "1"
-    ));
+    );
 
     console.log("retrieval successfull");
 }
