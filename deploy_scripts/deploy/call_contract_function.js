@@ -136,10 +136,16 @@ async function retrieveNftFunds(ownerAccount, contractAccount, nftContractAccoun
     let receiptList = [];
 
     for (let holderAccount of nftList) {
-        receipt = await account.sendMoney(
-            holderAccount, // receiver account
-            idealShareString // amount in yoctoNEAR
-        );
+        try {
+            receipt = await account.sendMoney(
+                holderAccount, // receiver account
+                idealShareString // amount in yoctoNEAR
+            );
+        } catch (err) {
+            console.log(err);
+            console.log(receiptList);
+        }
+
         receiptList.push(receipt);
     }
 
