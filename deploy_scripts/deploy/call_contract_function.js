@@ -2,6 +2,7 @@ import nearAPI from "near-api-js";
 import loginNear from "./_login.js";
 
 import buildContractObject from "./_contract_object.js";
+import { BN } from "bn.js";
 
 async function initializeContract(ownerAccount, contractAccount, params) {
     const contract = await buildContractObject(ownerAccount, contractAccount);
@@ -95,29 +96,55 @@ async function retrieveNftFunds(ownerAccount, contractAccount, nftContractAccoun
     const contract = await buildContractObject(ownerAccount, contractAccount);
     const { near, account } = await loginNear(ownerAccount);
 
+    //get nft count
     const tokenCount = await account.viewFunction(nftContractAccount, "nft_total_supply", {});
-
     let nftCount = parseInt(tokenCount);
 
+    //get list of all hodlers
     let pagination = 10;
     let currentSize = 0;
     let nftList = [];
     let fetchResult;
     while (currentSize < nftCount) {
         fetchResult = await account.viewFunction(nftContractAccount, "nft_tokens", { from_index: currentSize.toString(), limit: pagination })
-
         nftList.push(...fetchResult);
         currentSize = nftList.length;
     }
 
+    //get current state
+    let contractState = await contract.get_contract_state({},
+        "300000000000000",
+    );
+    let nftBalance = contractState.nft_balance
+
+
+    //retrieve funds
     await contract.retrieve_nft_funds({
-            distribution_list: nftList
+            distribution_list: JSON.stringify([account.accountId])
         },
-        "30000000000000000",
+        "300000000000000",
         "1"
     );
 
+    //get value per account
+    let bnNftCount = new BN(tokenCount);
+    let bnNftBalance = new BN(nftBalance);
+    let idealShare = bnNftBalance.div(bnNftCount);
+    let idealShareString = idealShare.toString(10);
+
+    let receipt;
+    let receiptList = [];
+
+    for (let holderAccount of nftList) {
+        receipt = await account.sendMoney(
+            holderAccount, // receiver account
+            idealShareString // amount in yoctoNEAR
+        );
+        receiptList.push(receipt);
+    }
+
     console.log("retrieval successfull");
+    console.log(receiptList);
 }
 
 export { initializeContract, emergencyPanic, getContractState, updateContract, retrieveDevFunds, retrieveNftFunds };
