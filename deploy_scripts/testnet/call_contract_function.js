@@ -6,7 +6,7 @@ import { BN } from "bn.js";
 
 async function initializeContract(ownerAccount, contractAccount, params) {
     const contract = await buildContractObject(ownerAccount, contractAccount);
-
+    console.log(params);
     let namedArgs = {
         owner_id: ownerAccount,
         nft_fee: params.nftFee,
@@ -17,6 +17,7 @@ async function initializeContract(ownerAccount, contractAccount, params) {
         min_bet: params.minBet,
         min_balance_fraction: params.minBalanceFraction
     };
+    console.log(namedArgs);
 
     const result = await contract.new(
         namedArgs,
@@ -174,4 +175,53 @@ async function retrieveNftFunds(ownerAccount, contractAccount, nftContractAccoun
     console.log(JSON.stringify(receiptList));
 }
 
-export { initializeContract, emergencyPanic, getContractState, updateContract, retrieveDevFunds, retrieveNftFunds };
+async function deposit(ownerAccount, contractAccount) {
+    const contract = await buildContractObject(ownerAccount, contractAccount);
+    const { near, account } = await loginNear(ownerAccount);
+
+    await contract.deposit({},
+        "300000000000000",
+        nearAPI.utils.format.parseNearAmount("50")
+    );
+}
+
+async function play(ownerAccount, contractAccount, choice, value) {
+    const contract = await buildContractObject(ownerAccount, contractAccount);
+    const { near, account } = await loginNear(ownerAccount);
+
+    const result = await contract.play({
+            _bet_type: choice,
+            bet_size: nearAPI.utils.format.parseNearAmount(value)
+        },
+        "300000000000000",
+        "0"
+    );
+}
+
+async function initializeNft(nftContract, sender) {
+    const contract = await buildContractObject(sender, nftContract);
+    const { near, account } = await loginNear(sender);
+
+    const result = await contract.new_default_meta({
+            owner_id: sender
+        },
+        "300000000000000",
+        "0"
+    );
+}
+
+async function mintNft(nftContract, sender, receiver, id) {
+    const contract = await buildContractObject(sender, nftContract);
+    const { near, account } = await loginNear(sender);
+
+    const result = await contract.nft_mint({
+            token_id: id,
+            receiver_id: receiver,
+            token_metadata: {}
+        },
+        "300000000000000",
+        "55100000000000000000000"
+    );
+}
+
+export { initializeContract, emergencyPanic, getContractState, updateContract, retrieveDevFunds, retrieveNftFunds, deposit, play, mintNft, initializeNft };
