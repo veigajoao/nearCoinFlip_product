@@ -98,6 +98,8 @@ impl Contract {
         receiver_id: ValidAccountId,
         token_metadata: TokenMetadata,
     ) -> Token {
+        //somente contrato de lending and borrowing poderá chamar mint
+        assert!(env::predecessor_account_id() == self.owner);
         self.tokens.mint(token_id, receiver_id, Some(token_metadata))
     }
 }

@@ -13,24 +13,41 @@ use near_sdk::{
 static ALLOC: near_sdk::wee_alloc::WeeAlloc = near_sdk::wee_alloc::WeeAlloc::INIT;
 
 // const ONE_NEAR: u128 = 1_000_000_000_000_000_000_000_000;
-const PROB:u8 = 128;
+const PROB: u8 = 128;
 const FRACTIONAL_BASE: u128 = 100_000;
+
+#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(crate = "near_sdk::serde")]
+pub struct PartneredGame {
+    pub blocked: bool,
+    pub affiliate_fee: u128, // base 10e-5
+    pub affiliate_balance: u128,
+    pub user_balance_lookup: LookupMap<AccountId, u128>
+}
 
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct SlotMachine {
     pub owner_id: AccountId,
-    pub credits: LookupMap<AccountId, Balance>,
+    pub panic_button: bool,
+    pub bet_payment_adjustment: u128, // base 10e-5
+
     pub nft_fee: u128, // base 10e-5
-    pub dev_fee: u128, // base 10e-5
+    pub owner_fee: u128, // base 10e-5
     pub house_fee: u128,
-    pub win_multiplier: u128, // base 10e-5
+
     pub nft_balance: u128,
     pub dev_balance: u128,
+    pub house_balance: u128
+
     pub max_bet: u128,
     pub min_bet: u128,
     pub min_balance_fraction: u128, //fraction of min_bet that can be held as minimum balance for user
-    pub panic_button: bool
+    pub max_odds: u8,
+    pub min_odds: u8,
+
+    pub game_structs: LookupMap<AccountId, PartneredGame>
+   
 }
 
 impl Default for SlotMachine {
@@ -42,86 +59,35 @@ impl Default for SlotMachine {
 #[near_bindgen]
 impl SlotMachine {
     #[init]
-    pub fn new(owner_id: AccountId, nft_fee: U128, dev_fee: U128,
-               house_fee: U128, win_multiplier: U128, max_bet: U128,
-               min_bet: U128, min_balance_fraction: U128) -> Self {
+    pub fn new(owner_id: AccountId, bet_payment_adjustment:U128,  nft_fee: U128, owner_fee: U128,
+               house_fee: U128, house_balance:U128, win_multiplier: U128, max_bet: U128,
+               min_bet: U128, min_balance_fraction: U128, max_odds: U8, min_odds: U8) -> Self {
         assert!(env::is_valid_account_id(owner_id.as_bytes()), "Invalid owner account");
         assert!(!env::state_exists(), "Already initialized");
         Self {
             owner_id,
-            credits: LookupMap::new(b"credits".to_vec()),
+            panic_button: false,
+            bet_payment_adjustment: bet_payment_adjustment.0, // base 10e-5
+
             nft_fee: nft_fee.0, // 4000
-            dev_fee: dev_fee.0, // 500
+            owner_fee: owner_fee.0, // 500
             house_fee: house_fee.0, // 500
-            win_multiplier: win_multiplier.0, // 20000
+
             nft_balance: 0,
             dev_balance: 0,
+            house_balance: house_balance.0
+
             max_bet: max_bet.0,
             min_bet: min_bet.0,
             min_balance_fraction: min_balance_fraction.0,
-            panic_button: false
+            max_odds: max_odds.0,
+            min_odds: min_odds.0,
+
+            game_structs: LookupMap::new(b"game_structs".to_vec())
         }
     }
 
-    #[payable]
-    pub fn deposit(&mut self) {
-        assert!(!self.panic_button, "Panic mode is on, contract has been paused by owner");
-        let account_id = env::predecessor_account_id();
-        let deposit = env::attached_deposit();
-
-        assert!(deposit > (self.min_bet / self.min_balance_fraction), "Minimum accepted deposit is {}", (self.min_bet / self.min_balance_fraction) );
-
-        let mut credits = self.credits.get(&account_id).unwrap_or(0);
-        credits = credits + deposit;
-        self.credits.insert(&account_id, &credits);
-    }
-    
-    pub fn retrieve_credits(&mut self) -> Promise {
-        assert!(!self.panic_button, "Panic mode is on, contract has been paused by owner");
-        let account_id = env::predecessor_account_id();
-        let credits: u128 = self.credits.get(&account_id).unwrap_or(0).into();
-        self.credits.remove(&account_id);
-        Promise::new(env::predecessor_account_id()).transfer(credits)
-    }
-
-    pub fn get_credits(&self, account_id: AccountId) -> U128 {
-        self.credits.get(&account_id).unwrap_or(0).into()
-    }
-
-    //bet_type heads == true, tails == false
-    pub fn play(&mut self, _bet_type: bool, bet_size: U128) -> bool {
-        assert!(!self.panic_button, "Panic mode is on, contract has been paused by owner");
-
-        // check that user has credits
-        let account_id = env::predecessor_account_id();
-        let mut credits = self.credits.get(&account_id).unwrap_or(0);
-        assert!(credits > bet_size.0, "no credits to play");
-        assert!(bet_size.0 >= self.min_bet, "minimum bet_size is {} yoctonear", self.min_bet);
-        assert!(bet_size.0 <= self.max_bet, "maximum bet_size is {} yoctonear", self.max_bet);
-
-        // charge dev and nft fees
-        let mut net_bet: u128 = bet_size.0;
-        let nft_cut: u128 = (&net_bet * self.nft_fee) / FRACTIONAL_BASE;
-        let dev_cut: u128 = (&net_bet * self.dev_fee) / FRACTIONAL_BASE;
-        let house_cut: u128 = (&net_bet * self.house_fee) / FRACTIONAL_BASE;
-        
-        net_bet = net_bet - &nft_cut - &dev_cut - &house_cut;
-        self.nft_balance = self.nft_balance + nft_cut;
-        self.dev_balance = self.dev_balance + dev_cut;
-
-        // send off credits
-        credits = credits - bet_size.0;
-        
-        let rand: u8 = *env::random_seed().get(0).unwrap();
-        let outcome: bool = rand < PROB;
-        if outcome {
-            let won_value = (net_bet * self.win_multiplier) / FRACTIONAL_BASE;
-            credits = credits + won_value;
-        }
-
-        self.credits.insert(&account_id, &credits);
-        outcome
-    }
+    //below here will exclude all
 
     //retrieve dev funds function
     #[payable]
