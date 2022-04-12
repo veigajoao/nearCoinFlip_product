@@ -1,6 +1,6 @@
 use near_sdk::{
     AccountId, Promise,
-    json_types::{ U128, U8 },
+    json_types::{ U128, },
 };
 
 pub mod game_interface_impl;
@@ -21,5 +21,5 @@ pub trait GameInterface {
     //the odds that they eant to take (the smallet the odds, the greater prize).
     //_bet_type is a dummy param for indexers to display the bet choice the user made, but are
     //irrelevant for game logic
-    fn play(&mut self, game_collection_id: AccountId, bet_size: U128, odds: U8, _bet_type: String) -> bool
+    fn play(&mut self, game_collection_id: AccountId, bet_size: U128, odds: U128, _bet_type: String) -> bool;
 }

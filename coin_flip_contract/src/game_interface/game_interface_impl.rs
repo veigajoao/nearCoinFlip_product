@@ -1,14 +1,19 @@
 use super::GameInterface;
+use crate::FRACTIONAL_BASE;
 use crate::PartneredGame;
+use crate::SlotMachineContract;
 use crate::SlotMachine;
 use near_sdk::{
     env, near_bindgen, AccountId, Balance, Promise,
     collections::{ LookupMap },
-    json_types::{ U128, U8 },
+    json_types::{ U128 },
     utils::assert_one_yocto
 };
+use near_sdk::{ borsh };
+use borsh::{ BorshDeserialize, BorshSerialize };
+use std::convert::TryFrom;
 
-
+#[near_bindgen]
 impl GameInterface for SlotMachine {
     
     #[payable]
@@ -23,13 +28,14 @@ impl GameInterface for SlotMachine {
         let mut credits = game_struct.user_balance_lookup.get(&account_id).unwrap_or(0);
         credits = credits + deposit;
         game_struct.user_balance_lookup.insert(&account_id, &credits);
+        credits.into()
     }
 
     //retrieves the balance for one specific user in a specific partnered game
     fn get_credits(&mut self, game_collection_id: AccountId, user_account_id: AccountId) -> U128 {
         let game_struct = self.game_structs.get(&game_collection_id).expect("provided game_collection_id does not exist");
         game_struct.user_balance_lookup.get(&user_account_id).unwrap_or(0).into()
-    };
+    }
 
     //retrieves the balance of the sender in the specified game
     fn retrieve_credits(&mut self, game_collection_id: AccountId) -> Promise {
@@ -41,13 +47,13 @@ impl GameInterface for SlotMachine {
         let credits: u128 = game_struct.user_balance_lookup.get(&account_id).unwrap_or(0).into();
         self.credits.remove(&account_id);
         Promise::new( env::predecessor_account_id() ).transfer(credits)
-    };
+    }
 
     //plays the game, user can choose the game collection to play within, size of the bet,
     //the odds that they eant to take (the smallet the odds, the greater prize).
     //_bet_type is a dummy param for indexers to display the bet choice the user made, but are
     //irrelevant for game logic
-    fn play(&mut self, game_collection_id: AccountId, bet_size: U128, odds: U8, _bet_type: String) -> bool {
+    fn play(&mut self, game_collection_id: AccountId, bet_size: U128, odds: U128, _bet_type: String) -> bool {
         assert!(!self.panic_button, "Panic mode is on, contract has been paused by owner");
 
         // check that user has credits
@@ -76,10 +82,11 @@ impl GameInterface for SlotMachine {
         credits = credits - bet_size.0;
         
         let rand: u8 = *env::random_seed().get(0).unwrap();
-        let outcome: bool = rand < odds.0;
+        let u8_odds = u8::try_from(odds.0).unwrap();
+        let outcome: bool = rand < u8_odds;
         if outcome {
             // add odds logic here
-            let won_value = ( (net_bet * (256 - odds.0) )/ 256 * bet_payment_adjustment ) / FRACTIONAL_BASE;
+            let won_value = ( ( (net_bet * 256 ) / odds.0 ) * self.bet_payment_adjustment ) / FRACTIONAL_BASE;
             credits = credits + won_value;
             self.house_balance = self.house_balance - won_value;
         }
@@ -87,4 +94,5 @@ impl GameInterface for SlotMachine {
         game_struct.user_balance_lookup.insert(&account_id, &credits);
         outcome
     }
+    
 }
