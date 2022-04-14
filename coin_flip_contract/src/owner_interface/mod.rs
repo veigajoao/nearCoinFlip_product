@@ -11,7 +11,7 @@ pub trait OwnerInterface {
     fn emergency_panic(&mut self) -> bool;
 
     //retrieves contract state variables
-    fn get_contract_state(&self) -> std::collections::HashMap<String, String>;
+    fn get_contract_state(&self) -> HashMap<String, String>;
 
     //update contracts state variables
     fn update_contract(&mut self, bet_payment_adjustment: U128, nft_fee: U128, owner_fee: U128, house_fee: U128, 
