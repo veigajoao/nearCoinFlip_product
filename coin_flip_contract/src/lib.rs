@@ -20,9 +20,11 @@ pub const FRACTIONAL_BASE: u128 = 100_000;
 
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct PartneredGame {
+    pub partner_owner: AccountId,
+    pub only_nft_owners_can_play: bool,
     pub blocked: bool,
-    pub affiliate_fee: u128, // base 10e-5
-    pub affiliate_balance: u128,
+    pub partner_fee: u128, // base 10e-5
+    pub partner_balance: u128,
     pub user_balance_lookup: LookupMap<AccountId, u128>
 }
 
