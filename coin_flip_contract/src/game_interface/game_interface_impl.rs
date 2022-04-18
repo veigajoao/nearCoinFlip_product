@@ -25,7 +25,7 @@ impl GameInterface for SlotMachine {
         assert!(deposit > (self.min_bet / self.min_balance_fraction), "Minimum accepted deposit is {}", (self.min_bet / self.min_balance_fraction) );
 
         let mut game_struct = self.game_structs.get(&game_collection_id).expect("provided game_collection_id does not exist");
-        let mut credits = game_struct.user_balance_lookup.get(&account_id).unwrap_or(0);
+        let mut credits = self.game_balances.get(&game_collection_id).unwrap().get(&account_id).unwrap_or(0);
         credits = credits + deposit;
         game_struct.user_balance_lookup.insert(&account_id, &credits);
         credits.into()
@@ -33,8 +33,7 @@ impl GameInterface for SlotMachine {
 
     //retrieves the balance for one specific user in a specific partnered game
     fn get_credits(&mut self, game_collection_id: AccountId, user_account_id: AccountId) -> U128 {
-        let game_struct = self.game_structs.get(&game_collection_id).expect("provided game_collection_id does not exist");
-        game_struct.user_balance_lookup.get(&user_account_id).unwrap_or(0).into()
+        self.game_balances.get(&game_collection_id).unwrap().get(&user_account_id).unwrap_or(0);
     }
 
     //retrieves the balance of the sender in the specified game
@@ -44,7 +43,7 @@ impl GameInterface for SlotMachine {
 
         let mut game_struct = self.game_structs.get(&game_collection_id).expect("provided game_collection_id does not exist");        
 
-        let credits: u128 = game_struct.user_balance_lookup.get(&account_id).unwrap_or(0).into();
+        let mut credits = self.game_balances.get(&game_collection_id).unwrap().get(&account_id).unwrap_or(0);
         self.credits.remove(&account_id);
         Promise::new( env::predecessor_account_id() ).transfer(credits)
     }
@@ -60,7 +59,7 @@ impl GameInterface for SlotMachine {
         let account_id = env::predecessor_account_id();
         
         let mut game_struct = self.game_structs.get(&game_collection_id).expect("provided game_collection_id does not exist");        
-        let mut credits = game_struct.user_balance_lookup.get(&account_id).unwrap_or(0);
+        let mut credits = self.game_balances.get(&game_collection_id).unwrap().get(&account_id).unwrap_or(0);
         assert!(credits > bet_size.0, "no credits to play");
         assert!(bet_size.0 >= self.min_bet, "minimum bet_size is {} yoctonear", self.min_bet);
         assert!(bet_size.0 <= self.max_bet, "maximum bet_size is {} yoctonear", self.max_bet);
@@ -91,7 +90,7 @@ impl GameInterface for SlotMachine {
             self.house_balance = self.house_balance - won_value;
         }
 
-        game_struct.user_balance_lookup.insert(&account_id, &credits);
+        self.game_balances.get(&game_collection_id).unwrap().insert(&account_id, &credits);
         outcome
     }
     

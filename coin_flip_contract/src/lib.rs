@@ -25,13 +25,13 @@ pub struct PartneredGame {
     pub blocked: bool,
     pub partner_fee: u128, // base 10e-5
     pub partner_balance: u128,
-    pub user_balance_lookup: LookupMap<AccountId, u128>
 }
 
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct SlotMachine {
     pub owner_id: AccountId,
+    pub nft_account: AccountId,
     pub panic_button: bool,
     pub bet_payment_adjustment: u128, // base 10e-5
 
@@ -40,7 +40,7 @@ pub struct SlotMachine {
     pub house_fee: u128,
 
     pub nft_balance: u128,
-    pub dev_balance: u128,
+    pub owner_balance: u128,
     pub house_balance: u128,
 
     pub max_bet: u128,
@@ -50,6 +50,7 @@ pub struct SlotMachine {
     pub min_odds: u8,
 
     pub game_structs: LookupMap<AccountId, PartneredGame>
+    pub game_balances: LookupMap<AccountId, LookupMap<AccountId, u128>>
    
 }
 
@@ -62,13 +63,14 @@ impl Default for SlotMachine {
 #[near_bindgen]
 impl SlotMachine {
     #[init]
-    pub fn new(owner_id: AccountId, bet_payment_adjustment:U128,  nft_fee: U128, owner_fee: U128,
+    pub fn new(owner_id: AccountId, nft_account: AccountId, bet_payment_adjustment:U128,  nft_fee: U128, owner_fee: U128,
                house_fee: U128, house_balance:U128, win_multiplier: U128, max_bet: U128,
                min_bet: U128, min_balance_fraction: U128, max_odds: U128, min_odds: U128) -> Self {
         assert!(env::is_valid_account_id(owner_id.as_bytes()), "Invalid owner account");
         assert!(!env::state_exists(), "Already initialized");
         Self {
             owner_id,
+            nft_account,
             panic_button: false,
             bet_payment_adjustment: bet_payment_adjustment.0, // base 10e-5
 
@@ -77,7 +79,7 @@ impl SlotMachine {
             house_fee: house_fee.0, // 500
 
             nft_balance: 0,
-            dev_balance: 0,
+            owner_balance: 0,
             house_balance: house_balance.0,
 
             max_bet: max_bet.0,
@@ -86,7 +88,8 @@ impl SlotMachine {
             max_odds: u8::try_from(max_odds.0).unwrap(),
             min_odds: u8::try_from(min_odds.0).unwrap(),
 
-            game_structs: LookupMap::new(b"game_structs".to_vec())
+            game_structs: LookupMap::new(b"game_structs".to_vec()),
+            game_balances: LookupMap::new(b"game_balances".to_vec())
         }
     }
 
@@ -100,10 +103,10 @@ impl SlotMachine {
         assert_one_yocto();
 
         let dev_account_id = self.owner_id.clone();
-        let withdrawal_dev_balance = self.dev_balance.clone();
-        self.dev_balance = 0;
+        let withdrawal_owner_balance = self.owner_balance.clone();
+        self.owner_balance = 0;
 
-        Promise::new(dev_account_id).transfer(withdrawal_dev_balance)
+        Promise::new(dev_account_id).transfer(withdrawal_owner_balance)
     }
 
     // //adapt to cross contract calls
@@ -150,7 +153,7 @@ impl SlotMachine {
     //     state.insert(String::from("house_fee"), self.house_fee.to_string());
     //     state.insert(String::from("win_multiplier"), self.win_multiplier.to_string());
     //     state.insert(String::from("nft_balance"), self.nft_balance.to_string());
-    //     state.insert(String::from("dev_balance"), self.dev_balance.to_string());
+    //     state.insert(String::from("owner_balance"), self.owner_balance.to_string());
     //     state.insert(String::from("max_bet"), self.max_bet.to_string());
     //     state.insert(String::from("min_bet"), self.min_bet.to_string());
     //     state.insert(String::from("min_balance_fraction"), self.min_balance_fraction.to_string());
@@ -223,7 +226,7 @@ mod tests {
             house_fee: 10,
             win_multiplier: 200000, // base 10e-5
             nft_balance: 0,
-            dev_balance: 0,
+            owner_balance: 0,
             max_bet: 100_000_000,
             min_bet: 100_000,
             min_balance_fraction: 100,
