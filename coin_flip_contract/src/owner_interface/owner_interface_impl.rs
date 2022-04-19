@@ -1,8 +1,5 @@
-use super::GameInterface;
-use crate::FRACTIONAL_BASE;
-use crate::PartneredGame;
-use crate::SlotMachineContract;
-use crate::SlotMachine;
+use crate::*;
+use super::OwnerInterface;
 use near_sdk::{
     env, near_bindgen, AccountId, Balance, Promise,
     collections::{ LookupMap },
@@ -12,6 +9,7 @@ use near_sdk::{
 use near_sdk::{ borsh };
 use borsh::{ BorshDeserialize, BorshSerialize };
 use std::convert::TryFrom;
+use std::collections::HashMap;
 
 #[near_bindgen]
 impl OwnerInterface for SlotMachine {
@@ -20,6 +18,7 @@ impl OwnerInterface for SlotMachine {
         assert!(env::predecessor_account_id() == self.owner_id, "Only owner can call this function");
         assert_one_yocto();
         self.panic_button = !self.panic_button;
+        self.panic_button
     }
 
     //retrieves contract state variables
@@ -73,24 +72,24 @@ impl OwnerInterface for SlotMachine {
         assert!(env::predecessor_account_id() == self.owner_id, "Only owner can call this function");
         assert_one_yocto();
         assert!(self.owner_balance >= amount.0, "insufficient balance for this withdrawal");
-        self.owner_balance = self.owner_balance - amount.0
-        Promise::new(self.owner_id).transfer(amount.0);
+        self.owner_balance = self.owner_balance - amount.0;
+        Promise::new(self.owner_id.clone()).transfer(amount.0)
     }
 
     fn retrieve_nft_funds(&mut self, amount: U128) -> Promise {
         assert!(env::predecessor_account_id() == self.owner_id, "Only owner can call this function");
         assert_one_yocto();
         assert!(self.nft_balance >= amount.0, "insufficient balance for this withdrawal");
-        self.nft_balance = self.nft_balance - amount.0
-        Promise::new(self.nft_account).transfer(amount.0);
+        self.nft_balance = self.nft_balance - amount.0;
+        Promise::new(self.nft_account.clone()).transfer(amount.0)
     }
 
     fn retrieve_house_funds(&mut self, amount: U128) -> Promise {
         assert!(env::predecessor_account_id() == self.owner_id, "Only owner can call this function");
         assert_one_yocto();
         assert!(self.house_balance >= amount.0, "insufficient balance for this withdrawal");
-        self.house_balance = self.house_balance - amount.0
-        Promise::new(self.owner_id).transfer(amount.0);
+        self.house_balance = self.house_balance - amount.0;
+        Promise::new(self.owner_id.clone()).transfer(amount.0)
     }
 
     //create new partnered game
@@ -106,9 +105,9 @@ impl OwnerInterface for SlotMachine {
             blocked: false,
             partner_fee: partner_fee.0, // base 10e-5
             partner_balance: 0,
-        }
-        self.game_balances.insert(&nft_contract, LookupMap::new(format!("{}{}", nft_contract, "game_struct".to_string()).into_bytes() ) );
-        self.game_structs.insert(&nft_contract, game_settings);
+        };
+        self.game_balances.insert(&nft_contract, &LookupMap::new(format!("{}{}", nft_contract, "game_struct".to_string()).into_bytes() ) );
+        self.game_structs.insert(&nft_contract, &game_settings);
         true
     }
 
@@ -123,8 +122,9 @@ impl OwnerInterface for SlotMachine {
             blocked,
             partner_fee: partner_fee.0, // base 10e-5
             partner_balance: 0,
-        }
-        self.game_structs.insert(&nft_contract, game_settings);
+        };
+        self.game_structs.insert(&nft_contract, &game_settings);
+        true
 
     }
     

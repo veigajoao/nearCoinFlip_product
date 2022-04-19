@@ -11,6 +11,8 @@ use near_sdk::{
 };
 
 mod game_interface;
+mod owner_interface;
+mod partner_interface;
 
 #[global_allocator]
 static ALLOC: near_sdk::wee_alloc::WeeAlloc = near_sdk::wee_alloc::WeeAlloc::INIT;
@@ -49,7 +51,7 @@ pub struct SlotMachine {
     pub max_odds: u8,
     pub min_odds: u8,
 
-    pub game_structs: LookupMap<AccountId, PartneredGame>
+    pub game_structs: LookupMap<AccountId, PartneredGame>,
     pub game_balances: LookupMap<AccountId, LookupMap<AccountId, u128>>
    
 }
@@ -108,74 +110,6 @@ impl SlotMachine {
 
         Promise::new(dev_account_id).transfer(withdrawal_owner_balance)
     }
-
-    // //adapt to cross contract calls
-    // #[payable]
-    // pub fn retrieve_nft_funds(&mut self, distribution_list: Vec<String>) {
-    //     assert!(!self.panic_button, "Panic mode is on, contract has been paused by owner");
-    //     assert!(env::predecessor_account_id() == self.owner_id, "Only owner can call this function");
-    //     assert_one_yocto();
-
-    //     let withdrawal_nft_balance = self.nft_balance.clone();
-    //     self.nft_balance = 0;
-    //     let collection_size: u128 = distribution_list.len().try_into().unwrap(); 
-    //     let piece_nft_balance: u128 = withdrawal_nft_balance / collection_size;
-
-    //     for item in distribution_list.into_iter() {
-    //         Promise::new(
-    //             item
-    //         ).transfer(piece_nft_balance);
-    //     }
-    // }
-
-    // //update contract initialization vars
-    // #[payable]
-    // pub fn update_contract(&mut self, nft_fee: U128, dev_fee: U128, house_fee: U128, win_multiplier: U128, max_bet: U128, min_bet: U128, min_balance_fraction: U128) {
-    //     assert!(env::predecessor_account_id() == self.owner_id, "Only owner can call this function");
-    //     assert_one_yocto();
-
-    //     self.nft_fee = nft_fee.0;
-    //     self.dev_fee = dev_fee.0;
-    //     self.house_fee = house_fee.0;
-    //     self.win_multiplier = win_multiplier.0;
-    //     self.max_bet = max_bet.0;
-    //     self.min_bet = min_bet.0;
-    //     self.min_balance_fraction = min_balance_fraction.0;
-    // }
-
-    // //return current contract state
-    // pub fn get_contract_state(&self) -> std::collections::HashMap<String, String> {
-    //     let mut state = std::collections::HashMap::new();
-        
-    //     state.insert(String::from("owner_id"), self.owner_id.to_string());
-    //     state.insert(String::from("nft_fee"), self.nft_fee.to_string());
-    //     state.insert(String::from("dev_fee"), self.dev_fee.to_string());
-    //     state.insert(String::from("house_fee"), self.house_fee.to_string());
-    //     state.insert(String::from("win_multiplier"), self.win_multiplier.to_string());
-    //     state.insert(String::from("nft_balance"), self.nft_balance.to_string());
-    //     state.insert(String::from("owner_balance"), self.owner_balance.to_string());
-    //     state.insert(String::from("max_bet"), self.max_bet.to_string());
-    //     state.insert(String::from("min_bet"), self.min_bet.to_string());
-    //     state.insert(String::from("min_balance_fraction"), self.min_balance_fraction.to_string());
-        
-    //     state
-    // }
-
-    // #[payable]
-    // pub fn emergency_panic(&mut self, withdrawal_balance: U128) -> Promise {
-    //     assert!(env::predecessor_account_id() == self.owner_id, "Only owner can call this function");
-    //     assert_one_yocto();
-
-    //     if self.panic_button {
-    //         self.panic_button = false;
-    //     } else {
-    //         self.panic_button = true;
-    //     }
-        
-    //     Promise::new(
-    //         self.owner_id.clone()
-    //     ).transfer(withdrawal_balance.0)
-    // }
 }
 
 

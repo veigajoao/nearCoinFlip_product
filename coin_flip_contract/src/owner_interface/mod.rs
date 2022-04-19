@@ -1,7 +1,9 @@
+use crate::*;
 use near_sdk::{
     AccountId, Promise,
     json_types::{ U128, },
 };
+use std::collections::HashMap;
 
 pub mod owner_interface_impl;
 

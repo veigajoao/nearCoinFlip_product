@@ -1,8 +1,5 @@
+use crate::*;
 use super::GameInterface;
-use crate::FRACTIONAL_BASE;
-use crate::PartneredGame;
-use crate::SlotMachineContract;
-use crate::SlotMachine;
 use near_sdk::{
     env, near_bindgen, AccountId, Balance, Promise,
     collections::{ LookupMap },
@@ -24,16 +21,15 @@ impl GameInterface for SlotMachine {
 
         assert!(deposit > (self.min_bet / self.min_balance_fraction), "Minimum accepted deposit is {}", (self.min_bet / self.min_balance_fraction) );
 
-        let mut game_struct = self.game_structs.get(&game_collection_id).expect("provided game_collection_id does not exist");
         let mut credits = self.game_balances.get(&game_collection_id).unwrap().get(&account_id).unwrap_or(0);
         credits = credits + deposit;
-        game_struct.user_balance_lookup.insert(&account_id, &credits);
+        self.game_balances.get(&game_collection_id).unwrap().insert(&account_id, &credits);
         credits.into()
     }
 
     //retrieves the balance for one specific user in a specific partnered game
     fn get_credits(&mut self, game_collection_id: AccountId, user_account_id: AccountId) -> U128 {
-        self.game_balances.get(&game_collection_id).unwrap().get(&user_account_id).unwrap_or(0);
+        U128(self.game_balances.get(&game_collection_id).unwrap().get(&user_account_id).unwrap_or(0))
     }
 
     //retrieves the balance of the sender in the specified game
@@ -41,10 +37,7 @@ impl GameInterface for SlotMachine {
         assert!(!self.panic_button, "Panic mode is on, contract has been paused by owner");
         let account_id = env::predecessor_account_id();
 
-        let mut game_struct = self.game_structs.get(&game_collection_id).expect("provided game_collection_id does not exist");        
-
-        let mut credits = self.game_balances.get(&game_collection_id).unwrap().get(&account_id).unwrap_or(0);
-        self.credits.remove(&account_id);
+        let credits = self.game_balances.get(&game_collection_id).unwrap().remove(&account_id).unwrap_or(0);
         Promise::new( env::predecessor_account_id() ).transfer(credits)
     }
 
@@ -69,13 +62,13 @@ impl GameInterface for SlotMachine {
         let nft_cut: u128 = (&net_bet * self.nft_fee) / FRACTIONAL_BASE;
         let owner_cut: u128 = (&net_bet * self.owner_fee) / FRACTIONAL_BASE;
         let house_cut: u128 = (&net_bet * self.house_fee) / FRACTIONAL_BASE;
-        let partner_cut: u128 = (&net_bet * &game_struct.affiliate_fee) / FRACTIONAL_BASE;
+        let partner_cut: u128 = (&net_bet * &game_struct.partner_fee) / FRACTIONAL_BASE;
         
         net_bet = net_bet - &nft_cut - &owner_cut - &house_cut - &partner_cut;
         self.nft_balance = self.nft_balance + nft_cut;
         self.owner_balance = self.owner_balance + owner_cut;
         self.house_balance = self.house_balance + house_cut;
-        game_struct.affiliate_balance = game_struct.affiliate_balance + partner_cut;
+        game_struct.partner_balance = game_struct.partner_balance + partner_cut;
 
         // send off credits
         credits = credits - bet_size.0;
