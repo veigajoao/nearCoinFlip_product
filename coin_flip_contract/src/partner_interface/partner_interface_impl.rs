@@ -8,7 +8,6 @@ use near_sdk::{
 };
 use near_sdk::{ borsh };
 use borsh::{ BorshDeserialize, BorshSerialize };
-use std::convert::TryFrom;
 use std::collections::HashMap;
 
 #[near_bindgen]
@@ -20,7 +19,6 @@ impl PartnerInterface for SlotMachine {
         let game_struct = self.game_structs.get(&nft_contract).expect("no partner found for this contract");
 
         state.insert(String::from("partner_owner"), game_struct.partner_owner.to_string());
-        state.insert(String::from("only_nft_owners_can_play"), game_struct.only_nft_owners_can_play.to_string());
         state.insert(String::from("bet_payment_adjustment"), game_struct.blocked.to_string());
         
         state.insert(String::from("partner_fee"), game_struct.partner_fee.to_string());

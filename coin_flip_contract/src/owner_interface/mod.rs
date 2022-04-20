@@ -1,4 +1,3 @@
-use crate::*;
 use near_sdk::{
     AccountId, Promise,
     json_types::{ U128, },
@@ -25,10 +24,8 @@ pub trait OwnerInterface {
     fn retrieve_house_funds(&mut self, amount: U128) -> Promise;
 
     //create new partnered game
-    fn create_new_partner(&mut self, partner_owner: AccountId, nft_contract: AccountId, partner_fee: U128, 
-        only_nft_owners_can_play: bool) -> bool;
+    fn create_new_partner(&mut self, partner_owner: AccountId, nft_contract: AccountId, partner_fee: U128) -> bool;
 
-    fn alter_partner(&mut self, partner_owner: AccountId, nft_contract: AccountId, partner_fee: U128, 
-        only_nft_owners_can_play: bool , blocked: bool) -> bool;
+    fn alter_partner(&mut self, partner_owner: AccountId, nft_contract: AccountId, partner_fee: U128, blocked: bool) -> bool;
     
 }
