@@ -397,6 +397,7 @@ mod tests {
         assert_eq!(game_struct.blocked, false);
         assert_eq!(game_struct.partner_fee, partner_fee.clone().0);
         assert_eq!(game_struct.partner_balance, 0);
+        assert!(contract.game_balances.contains_key(&partner_contract));
     }
 
     #[test]
