@@ -13,7 +13,7 @@ pub trait GameInterface {
     fn deposit_balance(&mut self, game_collection_id: AccountId) -> U128;
 
     //retrieves the balance for one specific user in a specific partnered game
-    fn get_credits(&mut self, game_collection_id: AccountId, user_account_id: AccountId) -> U128;
+    fn get_credits(&self, game_collection_id: AccountId, user_account_id: AccountId) -> U128;
 
     //retrieves the balance of the sender in the specified game
     fn retrieve_credits(&mut self, game_collection_id: AccountId) -> Promise;

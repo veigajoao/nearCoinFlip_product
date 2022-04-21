@@ -27,12 +27,10 @@ impl GameInterface for SlotMachine {
         credits.into()
     }
 
-    //retrieves the balance for one specific user in a specific partnered game
     fn get_credits(&self, game_collection_id: AccountId, user_account_id: AccountId) -> U128 {
         U128(self.game_balances.get(&game_collection_id).unwrap().get(&user_account_id).unwrap_or(0))
     }
 
-    //retrieves the balance of the sender in the specified game
     fn retrieve_credits(&mut self, game_collection_id: AccountId) -> Promise {
         assert!(!self.panic_button, "Panic mode is on, contract has been paused by owner");
         let account_id = env::predecessor_account_id();
@@ -69,6 +67,7 @@ impl GameInterface for SlotMachine {
         self.owner_balance = self.owner_balance + owner_cut;
         self.house_balance = self.house_balance + house_cut;
         game_struct.partner_balance = game_struct.partner_balance + partner_cut;
+        self.game_structs.insert(&game_collection_id, &game_struct);
 
         // send off credits
         credits = credits - bet_size.0;
@@ -77,7 +76,7 @@ impl GameInterface for SlotMachine {
         let u8_odds = u8::try_from(odds.0).unwrap();
         let outcome: bool = rand < u8_odds;
         if outcome {
-            let won_value = ( ( ( net_bet * 256 ) / odds.0 ) * self.bet_payment_adjustment ) / FRACTIONAL_BASE;
+            let won_value = ( ( ( net_bet * 256 ) / (odds.0) ) * self.bet_payment_adjustment ) / FRACTIONAL_BASE;
             credits = credits + won_value;
             self.house_balance = self.house_balance - won_value;
         }
