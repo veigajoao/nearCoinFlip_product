@@ -28,7 +28,7 @@ impl GameInterface for SlotMachine {
     }
 
     //retrieves the balance for one specific user in a specific partnered game
-    fn get_credits(&mut self, game_collection_id: AccountId, user_account_id: AccountId) -> U128 {
+    fn get_credits(&self, game_collection_id: AccountId, user_account_id: AccountId) -> U128 {
         U128(self.game_balances.get(&game_collection_id).unwrap().get(&user_account_id).unwrap_or(0))
     }
 
@@ -77,8 +77,7 @@ impl GameInterface for SlotMachine {
         let u8_odds = u8::try_from(odds.0).unwrap();
         let outcome: bool = rand < u8_odds;
         if outcome {
-            // add odds logic here
-            let won_value = ( ( (net_bet * 256 ) / odds.0 ) * self.bet_payment_adjustment ) / FRACTIONAL_BASE;
+            let won_value = ( ( ( net_bet * 256 ) / odds.0 ) * self.bet_payment_adjustment ) / FRACTIONAL_BASE;
             credits = credits + won_value;
             self.house_balance = self.house_balance - won_value;
         }

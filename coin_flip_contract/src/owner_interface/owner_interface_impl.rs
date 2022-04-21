@@ -11,6 +11,7 @@ use std::collections::HashMap;
 #[near_bindgen]
 impl OwnerInterface for SlotMachine {
     
+    #[payable]
     fn emergency_panic(&mut self) -> bool {
         assert!(env::predecessor_account_id() == self.owner_id, "Only owner can call this function");
         assert_one_yocto();
@@ -43,7 +44,7 @@ impl OwnerInterface for SlotMachine {
         state
     }
 
-    //update contracts state variables
+    #[payable]
     fn update_contract(&mut self, bet_payment_adjustment: U128, nft_fee: U128, owner_fee: U128, house_fee: U128, 
                     max_bet: U128, min_bet: U128, min_balance_fraction: U128, max_odds: U128, min_odds: U128) -> bool {
         
@@ -65,7 +66,7 @@ impl OwnerInterface for SlotMachine {
         true
     }
     
-    //retrieve contract funds
+    #[payable]
     fn retrieve_owner_funds(&mut self, amount: U128) -> Promise {
         assert!(env::predecessor_account_id() == self.owner_id, "Only owner can call this function");
         assert_one_yocto();
@@ -74,6 +75,7 @@ impl OwnerInterface for SlotMachine {
         Promise::new(self.owner_id.clone()).transfer(amount.0)
     }
 
+    #[payable]
     fn retrieve_nft_funds(&mut self, amount: U128) -> Promise {
         assert!(env::predecessor_account_id() == self.owner_id, "Only owner can call this function");
         assert_one_yocto();
@@ -82,6 +84,7 @@ impl OwnerInterface for SlotMachine {
         Promise::new(self.nft_account.clone()).transfer(amount.0)
     }
 
+    #[payable]
     fn retrieve_house_funds(&mut self, amount: U128) -> Promise {
         assert!(env::predecessor_account_id() == self.owner_id, "Only owner can call this function");
         assert_one_yocto();
@@ -91,6 +94,7 @@ impl OwnerInterface for SlotMachine {
     }
 
     //create new partnered game
+    #[payable]
     fn create_new_partner(&mut self, partner_owner: AccountId, nft_contract: AccountId, partner_fee: U128) -> bool {
         assert!(env::predecessor_account_id() == self.owner_id, "Only owner can call this function");
         assert_one_yocto();
@@ -107,6 +111,7 @@ impl OwnerInterface for SlotMachine {
         true
     }
 
+    #[payable]
     fn alter_partner(&mut self, partner_owner: AccountId, nft_contract: AccountId, partner_fee: U128, 
                         blocked: bool) -> bool {
         assert!(env::predecessor_account_id() == self.owner_id, "Only owner can call this function");

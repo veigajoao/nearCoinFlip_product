@@ -24,6 +24,7 @@ impl PartnerInterface for SlotMachine {
         state
     }
     
+    #[payable]
     fn retrieve_partner_balance(&mut self, nft_contract: AccountId) -> Promise {
         let mut game_struct = self.game_structs.get(&nft_contract).expect("No partner found for this contract");
         assert!(game_struct.partner_owner == env::predecessor_account_id(), "Only owner of partnered game can call this function");
