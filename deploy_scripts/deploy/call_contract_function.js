@@ -139,8 +139,13 @@ async function retrieveNftFunds(ownerAccount, contractAccount, nftContractAccoun
         "1"
     );
 
+    let nftListNoMarketplace = [];
+    for (let holderAccount of nftList) {
+        if (Object.keys(approved_account_ids).length === 0) nftListNoMarketplace.push(holderAccount);
+    }
+
     //get value per account
-    let bnNftCount = new BN(tokenCount);
+    let bnNftCount = new BN(nftListNoMarketplace.length);
     let bnNftBalance = new BN(nftBalance);
     let idealShare = bnNftBalance.div(bnNftCount);
     let idealShareString = idealShare.toString(10);
@@ -149,7 +154,7 @@ async function retrieveNftFunds(ownerAccount, contractAccount, nftContractAccoun
     let receiptList = [];
     let objectTransaction;
 
-    for (let holderAccount of nftList) {
+    for (let holderAccount of nftListNoMarketplace) {
         console.log(`${holderAccount.token_id}/${tokenCount}`);
         try {
             receipt = await account.sendMoney(
