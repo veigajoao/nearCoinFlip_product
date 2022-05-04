@@ -99,7 +99,6 @@ async function retrieveNftFunds(ownerAccount, contractAccount, nftContractAccoun
     //get nft count
     const tokenCount = await account.viewFunction(nftContractAccount, "nft_total_supply", {});
     let nftCount = parseInt(tokenCount);
-    console.log(tokenCount);
 
     //get list of all hodlers
     let pagination = 1;
@@ -117,18 +116,12 @@ async function retrieveNftFunds(ownerAccount, contractAccount, nftContractAccoun
             continue
         }
         nftList.push(fetchResult);
-        // fetchResult = await account.viewFunction(nftContractAccount, "nft_tokens", { from_index: currentSize.toString(), limit: pagination })
-        // nftList.push(...fetchResult);
         currentSize = nftList.length;
     }
-    console.log(nftList);
 
     //get current state
-    let contractState = await contract.get_contract_state({},
-        "300000000000000",
-    );
+    let contractState = await account.viewFunction(contractAccount, "get_contract_state", {});
     let nftBalance = contractState.nft_balance
-    console.log(nftBalance);
 
 
     //retrieve funds
@@ -141,8 +134,9 @@ async function retrieveNftFunds(ownerAccount, contractAccount, nftContractAccoun
 
     let nftListNoMarketplace = [];
     for (let holderAccount of nftList) {
-        if (Object.keys(approved_account_ids).length === 0) nftListNoMarketplace.push(holderAccount);
+        if (Object.keys(holderAccount.approved_account_ids).length === 0) nftListNoMarketplace.push(holderAccount);
     }
+
 
     //get value per account
     let bnNftCount = new BN(nftListNoMarketplace.length);
@@ -155,7 +149,7 @@ async function retrieveNftFunds(ownerAccount, contractAccount, nftContractAccoun
     let objectTransaction;
 
     for (let holderAccount of nftListNoMarketplace) {
-        console.log(`${holderAccount.token_id}/${tokenCount}`);
+        console.log(`${holderAccount.token_id}/${nftListNoMarketplace.length}`);
         try {
             receipt = await account.sendMoney(
                 holderAccount.owner_id, // receiver account

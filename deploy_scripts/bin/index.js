@@ -248,3 +248,5 @@ yargs(hideBin(process.argv))
     )
     .demandCommand(1)
     .parse();
+
+    //nft-coinflip retrieve-nft veiga.near kcfhouse.near classykangaroos1.near
