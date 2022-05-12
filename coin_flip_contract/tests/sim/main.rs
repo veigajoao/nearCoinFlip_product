@@ -6,7 +6,8 @@ pub use near_sdk_sim::{call, view, deploy, init_simulator, to_yocto, UserAccount
 pub use near_sdk::AccountId;
 
 near_sdk_sim::lazy_static_include::lazy_static_include_bytes! {
-    COIN_BYTES => "./target/wasm32-unknown-unknown/release/classy_kangaroo_coin_flip.wasm",
+    LENDING_CONTRACT => "./target/wasm32-unknown-unknown/release/classy_kangaroo_coin_flip.wasm",
+    NFT_CONTRACT => "./target/wasm32-unknown-unknown/release/classy_kangaroo_coin_flip.wasm"
 }
 
 use std::convert::TryFrom;
@@ -22,6 +23,7 @@ const MIN_BALANCE_FRACTION: u128 = 100;
 
 const GAS_ATTACHMENT: u64 = 300_000_000_000_000;
 
+mod xpto
 #[test]
 fn simulate_full_flow() {
     //Test full flow from deploying app
@@ -33,31 +35,87 @@ fn simulate_full_flow() {
     //gets fee balances and withdraw to owners
 
     let mut genesis = near_sdk_sim::runtime::GenesisConfig::default();
-    genesis.gas_limit = u64::MAX;
+    genesis.gas_limit = 300_000_000_000_000;
     genesis.gas_price = 0;
 
     let root = init_simulator(Some(genesis));
 
-    let owner_account = root.create_user("owner_account".to_string(), to_yocto("100"));
-    let nft_account = root.create_user("nft_account".to_string(), to_yocto("100"));
+    let owner_account_lending = root.create_user("owner_account".to_string(), to_yocto("100"));
+    let owner_account_nft_collection = root.create_user("owner_account".to_string(), to_yocto("100"));
 
-    let consumer1 = root.create_user("consumer1".to_string(), to_yocto("100"));
-    let consumer2 = root.create_user("consumer2".to_string(), to_yocto("100"));
-    let consumer3 = root.create_user("consumer3".to_string(), to_yocto("100"));
-
-    let collection1 = root.create_user("collection1".to_string(), to_yocto("100"));
-    let collection_owner1 = root.create_user("collection_owner1".to_string(), to_yocto("100"));
-    let collection2 = root.create_user("collection2".to_string(), to_yocto("100"));
-    let collection_owner2 = root.create_user("collection_owner2".to_string(), to_yocto("100"));
-    let collection3 = root.create_user("collection3".to_string(), to_yocto("100"));
-    let collection_owner3 = root.create_user("collection_owner3".to_string(), to_yocto("100"));
-
-    // //deploy contracts
-    let coin_account = root.deploy(
-        &COIN_BYTES,
-        "coin_contract".to_string(),
+   //deploy contracts
+    let lending_account = root.deploy(
+        &LENDING_CONTRACT,
+        "leding_contract".to_string(),
         to_yocto("100")
     );
+
+    let nft_note_account = root.deploy(
+        &NFT_CONTRACT,
+        "note_contract".to_string(),
+        to_yocto("100")
+    );
+
+    let nft_receit_account = root.deploy(
+        &NFT_CONTRACT,
+        "receipt_contract".to_string(),
+        to_yocto("100")
+    );
+
+    let nft_collection_account = root.deploy(
+        &NFT_CONTRACT,
+        "nft_collection_contract".to_string(),
+        to_yocto("100")
+    );
+
+    //initialize contracts
+    owner_account_lending.call(
+        lending_account.account_id(), 
+        "new", 
+        &json!({
+            "owner_id": owner_account_lending.account_id(), 
+            "note_address": nft_note_account.account_id(), 
+            "receipt_address": nft_receit_account.account_id()
+        }).to_string().into_bytes(),
+        GAS_ATTACHMENT, 
+        0
+    ).assert_success();
+    
+    owner_account_lending.call(
+        nft_note_account.account_id(), 
+        "new", 
+        &json!({
+            "owner_id": lending_account.account_id(), 
+            "metadata": metadata
+        }).to_string().into_bytes(),
+        GAS_ATTACHMENT, 
+        0
+    ).assert_success();
+
+    owner_account_lending.call(
+        nft_receipt_account.account_id(), 
+        "new", 
+        &json!({
+            "owner_id": lending_account.account_id(), 
+            "metadata": metadata
+        }).to_string().into_bytes(),
+        GAS_ATTACHMENT, 
+        0
+    ).assert_success();
+
+    owner_account_lending.call(
+        nft_collection_account.account_id(), 
+        "new", 
+        &json!({
+            "owner_id": owner_account_nft_collection.account_id(), 
+            "metadata": metadata
+        }).to_string().into_bytes(),
+        GAS_ATTACHMENT, 
+        0
+    ).assert_success();
+
+    //
+
 
     let initial_house_balance: u128 = to_yocto("100");
     let max_bet: u128 = to_yocto("5");
