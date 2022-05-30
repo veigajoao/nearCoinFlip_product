@@ -1,7 +1,5 @@
-use crate::*;
 use near_sdk::{
-    AccountId, Promise,
-    json_types::{ U128, },
+    AccountId, Promise
 };
 use std::collections::HashMap;
 

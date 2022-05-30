@@ -2,7 +2,6 @@ use near_sdk::{
     AccountId, Promise,
     json_types::{ U128, },
 };
-use crate::*;
 
 pub mod game_interface_impl;
 

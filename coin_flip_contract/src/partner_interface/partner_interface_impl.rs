@@ -1,10 +1,9 @@
 use crate::*;
 use super::PartnerInterface;
 use near_sdk::{
-    env, near_bindgen, AccountId, Balance, Promise,
+    env, near_bindgen, AccountId, Promise,
     utils::assert_one_yocto
 };
-use near_sdk::{ borsh };
 use std::collections::HashMap;
 
 #[near_bindgen]
@@ -43,7 +42,7 @@ mod tests {
     use crate::*;
     use crate::tests::{
         get_context, sample_contract,
-        SIGNER_ACCOUNT, OWNER_ACCOUNT
+        OWNER_ACCOUNT
     };
     use super::*;
     use crate::owner_interface::OwnerInterface;
@@ -81,7 +80,6 @@ mod tests {
     #[test]
     fn test_retrieve_partner_balance() {
         const BASE_DEPOSIT: u128 = 1;
-        let partner_account: AccountId = "partner.testnet".to_string();
         let partner_contract: AccountId = "partner_account.testnet".to_string();
         let partner_fee: U128 = U128(100);
         let context = get_context(vec![], false, BASE_DEPOSIT.clone(), 1000, OWNER_ACCOUNT.to_string());
@@ -97,9 +95,7 @@ mod tests {
     #[should_panic(expected = "No partner found for this contract")]
     fn test_retrieve_partner_balance_no_partner() {
         const BASE_DEPOSIT: u128 = 1;
-        let partner_account: AccountId = "partner.testnet".to_string();
         let partner_contract: AccountId = "partner_account.testnet".to_string();
-        let partner_fee: U128 = U128(100);
         let context = get_context(vec![], false, BASE_DEPOSIT.clone(), 1000, OWNER_ACCOUNT.to_string());
         testing_env!(context);
         let mut contract = sample_contract();
@@ -126,7 +122,6 @@ mod tests {
     #[should_panic(expected = "Requires attached deposit of exactly 1 yoctoNEAR")]
     fn test_retrieve_partner_balance_one_yocto() {
         const BASE_DEPOSIT: u128 = 2;
-        let partner_account: AccountId = "partner.testnet".to_string();
         let partner_contract: AccountId = "partner_account.testnet".to_string();
         let partner_fee: U128 = U128(100);
         let context = get_context(vec![], false, BASE_DEPOSIT.clone(), 1000, OWNER_ACCOUNT.to_string());

@@ -1,13 +1,11 @@
-use std::convert::TryInto;
 use std::convert::TryFrom;
 
 use near_sdk::{ borsh };
 use borsh::{ BorshDeserialize, BorshSerialize };
 use near_sdk::{
-    env, near_bindgen, AccountId, Balance, Promise,
+    env, near_bindgen, AccountId,
     collections::{ LookupMap },
     json_types::{ U128 },
-    utils::assert_one_yocto
 };
 
 pub mod game_interface;
@@ -50,6 +48,8 @@ pub struct SlotMachine {
     pub max_odds: u8,
     pub min_odds: u8,
 
+    pub game_count: u128,
+
     pub game_structs: LookupMap<AccountId, PartneredGame>,
     pub game_balances: LookupMap<AccountId, LookupMap<AccountId, u128>>
    
@@ -89,6 +89,8 @@ impl SlotMachine {
             max_odds: u8::try_from(max_odds.0).unwrap(),
             min_odds: u8::try_from(min_odds.0).unwrap(),
 
+            game_count: 0,
+
             game_structs: LookupMap::new(b"game_structs".to_vec()),
             game_balances: LookupMap::new(b"game_balances".to_vec())
         }
@@ -96,6 +98,15 @@ impl SlotMachine {
 
 }
 
+impl SlotMachine {
+    fn assert_panic_button(&self) {
+        assert!(!self.panic_button, "Panic mode is on, contract has been paused by owner");
+    }
+
+    fn only_owner(&self) {
+        assert!(env::predecessor_account_id() == self.owner_id, "Only owner can call this function");
+    }
+}
 
 // use the attribute below for unit tests
 #[cfg(test)]
@@ -150,7 +161,9 @@ mod tests {
             min_balance_fraction: 100, //fraction of min_bet that can be held as minimum balance for user
             max_odds: 200,
             min_odds: 20,
-    
+            
+            game_count: 0,
+
             game_structs: LookupMap::new(b"game_structs".to_vec()),
             game_balances: LookupMap::new(b"game_balances".to_vec())
         }

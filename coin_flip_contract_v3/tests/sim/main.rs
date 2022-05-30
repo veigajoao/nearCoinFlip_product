@@ -23,7 +23,6 @@ const MIN_BALANCE_FRACTION: u128 = 100;
 
 const GAS_ATTACHMENT: u64 = 300_000_000_000_000;
 
-mod xpto
 #[test]
 fn simulate_full_flow() {
     //Test full flow from deploying app
