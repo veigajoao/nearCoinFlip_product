@@ -121,6 +121,7 @@ impl GameInterface for SlotMachine {
             self.house_balance = self.house_balance - won_value;
         }
 
+        self.game_count += 1;
         self.game_balances
             .get(&game_collection_id)
             .unwrap()
