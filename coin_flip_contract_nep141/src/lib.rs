@@ -41,16 +41,9 @@ pub struct Contract {
     pub owner_id: AccountId,
     pub nft_account: AccountId,
     pub panic_button: bool,
-    pub bet_payment_adjustment: u128, // base 10e-5
 
     pub nft_fee: u128,   // base 10e-5
     pub owner_fee: u128, // base 10e-5
-    pub house_fee: u128,
-    pub max_bet: u128,
-    pub min_bet: u128,
-    pub min_balance_fraction: u128, //fraction of min_bet that can be held as minimum balance for user
-    pub max_odds: u8,
-    pub min_odds: u8,
 
     pub game_count: u128,
 
@@ -70,15 +63,8 @@ impl Contract {
     pub fn new(
         owner_id: AccountId,
         nft_account: AccountId,
-        bet_payment_adjustment: U128,
         nft_fee: U128,
         owner_fee: U128,
-        house_fee: U128,
-        max_bet: U128,
-        min_bet: U128,
-        min_balance_fraction: U128,
-        max_odds: U128,
-        min_odds: U128,
     ) -> Self {
         assert!(
             env::is_valid_account_id(owner_id.as_bytes()),
@@ -89,20 +75,12 @@ impl Contract {
             owner_id,
             nft_account,
             panic_button: false,
-            bet_payment_adjustment: bet_payment_adjustment.0, // base 10e-5
-
+            
             nft_fee: nft_fee.0,     // 4000
             owner_fee: owner_fee.0, // 500
-            house_fee: house_fee.0, // 500
 
             nft_balance: UnorderedMap::new(StorageKey::NftFunds),
             owner_balance: UnorderedMap::new(StorageKey::OwnerFunds),
-
-            max_bet: max_bet.0,
-            min_bet: min_bet.0,
-            min_balance_fraction: min_balance_fraction.0,
-            max_odds: u8::try_from(max_odds.0).unwrap(),
-            min_odds: u8::try_from(min_odds.0).unwrap(),
 
             game_count: 0,
 

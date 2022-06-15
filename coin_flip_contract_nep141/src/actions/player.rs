@@ -1,10 +1,7 @@
-use super::GameInterface;
 use crate::*;
-use near_sdk::{env, json_types::U128, near_bindgen, AccountId, Promise};
-use std::convert::{TryFrom};
 
 #[near_bindgen]
-impl GameInterface for Contract {
+impl Contract {
     #[payable]
     fn deposit_balance(&mut self, game_collection_id: AccountId) -> U128 {
         self.assert_panic_button();

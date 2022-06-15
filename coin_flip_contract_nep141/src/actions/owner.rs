@@ -12,31 +12,13 @@ impl  Contract {
     #[payable]
     pub fn update_contract(
         &mut self,
-        bet_payment_adjustment: U128,
         nft_fee: U128,
         owner_fee: U128,
-        house_fee: U128,
-        max_bet: U128,
-        min_bet: U128,
-        min_balance_fraction: U128,
-        max_odds: U128,
-        min_odds: U128,
-    ) -> bool {
+    ) {
         self.only_owner();
-
-        self.bet_payment_adjustment = bet_payment_adjustment.0;
 
         self.nft_fee = nft_fee.0;
         self.owner_fee = owner_fee.0;
-        self.house_fee = house_fee.0;
-
-        self.max_bet = max_bet.0;
-        self.min_bet = min_bet.0;
-        self.min_balance_fraction = min_balance_fraction.0;
-        self.max_odds = u8::try_from(max_odds.0).unwrap();
-        self.min_odds = u8::try_from(min_odds.0).unwrap();
-
-        true
     }
 
     pub fn retrieve_owner_funds(&mut self) -> PromiseOrValue<bool> {
@@ -75,6 +57,12 @@ impl  Contract {
         nft_contract: AccountId,
         token_contract: AccountId,
         partner_fee: U128,
+        bet_payment_adjustment: U128,
+        house_fee: U128,
+        max_bet: U128,
+        min_bet: U128,
+        max_odds: u8,
+        min_odds: u8,
     ) {
         self.only_owner();
         assert!(
@@ -89,8 +77,15 @@ impl  Contract {
             blocked: false,
             house_funds: 0,
             partner_token: token_contract,
-            partner_fee: partner_fee.0, // base 10e-5
+            partner_fee: partner_fee.0,
             partner_balance: 0,
+
+            bet_payment_adjustment: bet_payment_adjustment.0,
+            house_fee: house_fee.0,
+            max_bet: max_bet.0,
+            min_bet: min_bet.0,
+            max_odds,
+            min_odds,
         };
         self.games.insert(&nft_contract, &game_settings);
 
