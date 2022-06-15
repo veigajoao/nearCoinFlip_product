@@ -36,7 +36,7 @@ impl Contract {
                 &env::current_account_id(),
                 0,
                 TRANSFER_CALLBACK_GAS,
-            )
+            ),
         )
     }
 
@@ -48,11 +48,17 @@ impl Contract {
                 &env::current_account_id(),
                 0,
                 TRANSFER_CALLBACK_GAS,
-            )
+            ),
         )
     }
 
-    pub fn safe_transfer_project(&self, token_contract: AccountId, amount: u128, project_id: String, project_owner_id: AccountId) -> Promise {
+    pub fn safe_transfer_project(
+        &self,
+        token_contract: AccountId,
+        amount: u128,
+        project_id: String,
+        project_owner_id: AccountId,
+    ) -> Promise {
         transfer_token(token_contract.clone(), project_owner_id, amount).then(
             ext_self::project_transfer_callback(
                 U128(amount),
@@ -60,11 +66,16 @@ impl Contract {
                 &env::current_account_id(),
                 0,
                 TRANSFER_CALLBACK_GAS,
-            )
+            ),
         )
     }
 
-    pub fn safe_transfer_user(&self, token_contract: AccountId, amount: u128, user_account_id: AccountId) -> Promise {
+    pub fn safe_transfer_user(
+        &self,
+        token_contract: AccountId,
+        amount: u128,
+        user_account_id: AccountId,
+    ) -> Promise {
         transfer_token(token_contract.clone(), user_account_id.clone(), amount).then(
             ext_self::user_transfer_callback(
                 token_contract,
@@ -73,7 +84,7 @@ impl Contract {
                 &env::current_account_id(),
                 0,
                 TRANSFER_CALLBACK_GAS,
-            )
+            ),
         )
     }
 }

@@ -20,3 +20,6 @@ pub const ERR_301: &str = "ERR_301: Token sent is not the registered token type 
 
 // player actions errors
 pub const ERR_401: &str = "ERR_401: Not enough balance for this withdraw";
+pub const ERR_402: &str = "ERR_402: Not enough balance for this bet size";
+pub const ERR_403: &str = "ERR_403: Minimum bet size not respected";
+pub const ERR_404: &str = "ERR_404: Maximum bet size not respected";

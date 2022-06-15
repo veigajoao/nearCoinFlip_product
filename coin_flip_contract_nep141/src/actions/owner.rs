@@ -72,6 +72,10 @@ impl  Contract {
         let contract_id = env::current_account_id();
         let mut contract_account = self.internal_get_account(&contract_id).unwrap();
         let initial_storage = env::storage_usage();
+
+        self.nft_balance.insert(&token_contract, &0);
+        self.owner_balance.insert(&token_contract, &0);
+
         let game_settings = PartneredGame {
             partner_owner,
             blocked: false,
