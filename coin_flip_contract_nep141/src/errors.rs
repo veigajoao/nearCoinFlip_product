@@ -17,3 +17,6 @@ pub const ERR_202: &str = "ERR_202: No NFT funds to withdraw";
 
 // partnered game errors
 pub const ERR_301: &str = "ERR_301: Token sent is not the registered token type for game";
+
+// player actions errors
+pub const ERR_401: &str = "ERR_401: Not enough balance for this withdraw";

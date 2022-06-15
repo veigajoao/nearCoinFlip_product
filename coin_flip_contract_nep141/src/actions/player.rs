@@ -2,53 +2,25 @@ use crate::*;
 
 #[near_bindgen]
 impl Contract {
-    #[payable]
-    fn deposit_balance(&mut self, game_collection_id: AccountId) -> U128 {
-        self.assert_panic_button();
-        let account_id = env::predecessor_account_id();
-        let deposit = env::attached_deposit();
-
-        assert!(
-            deposit > (self.min_bet / self.min_balance_fraction),
-            "Minimum accepted deposit is {}",
-            (self.min_bet / self.min_balance_fraction)
-        );
-
-        let mut credits = self
-            .game_balances
-            .get(&game_collection_id)
-            .unwrap()
-            .get(&account_id)
-            .unwrap_or(0);
-        credits = credits + deposit;
-        self.game_balances
-            .get(&game_collection_id)
-            .unwrap()
-            .insert(&account_id, &credits);
-        credits.into()
-    }
-
-    fn get_credits(&self, game_collection_id: AccountId, user_account_id: AccountId) -> U128 {
+    pub fn get_credits(&self, token_type: AccountId, account_id: AccountId) -> U128 {
         U128(
-            self.game_balances
-                .get(&game_collection_id)
-                .unwrap()
-                .get(&user_account_id)
+            self.internal_get_account(&account_id)
+                .expect(ERR_001)
+                .balances
+                .get(&token_type)
                 .unwrap_or(0),
         )
     }
 
-    fn retrieve_credits(&mut self, game_collection_id: AccountId) -> Promise {
+    pub fn retrieve_credits(&mut self, token_contract: AccountId, amount: U128) -> Promise {
         self.assert_panic_button();
         let account_id = env::predecessor_account_id();
-
-        let credits = self
-            .game_balances
-            .get(&game_collection_id)
-            .expect("Partnered game does not exist")
-            .remove(&account_id)
-            .unwrap_or(0);
-        Promise::new(env::predecessor_account_id()).transfer(credits)
+        let account = self.internal_get_account(&account_id).expect(ERR_001);
+        let current_balance = account.balances.get(&token_contract).unwrap_or(0);
+        assert!(current_balance >= amount.0, "{}", ERR_401);
+        account.balances.insert(&token_contract, &(current_balance - amount.0));
+        self.internal_update_account(&account_id, &account);
+        self.safe_transfer_user(token_contract, amount.0, account_id)
     }
 
     //plays the game, user can choose the game collection to play within, size of the bet,
@@ -127,276 +99,26 @@ impl Contract {
     }
 }
 
-#[cfg(test)]
-mod tests {
+// methods to be called through token receiver
+impl Contract {
+    pub fn user_deposit_balance(
+        &mut self,
+        account_id: AccountId,
+        token_contract: AccountId,
+        amount: u128,
+    ) {
+        self.assert_panic_button();
 
-    use super::*;
-    use crate::owner_interface::OwnerInterface;
-    use crate::tests::{get_context, sample_contract, OWNER_ACCOUNT};
-    use near_sdk::testing_env;
-    use near_sdk::MockedBlockchain;
+        let initial_storage = env::storage_usage();
+        let account = self.internal_get_account(&account_id).expect(ERR_001);
 
-    #[test]
-    fn test_deposit_balance() {
-        const BASE_DEPOSIT: u128 = 10_000;
-        const ONE_YOCTO_DEPOSIT: u128 = 1;
-        let mut context = get_context(
-            vec![],
-            false,
-            ONE_YOCTO_DEPOSIT.clone(),
-            10_000,
-            OWNER_ACCOUNT.to_string(),
-        );
-        testing_env!(context);
-        let mut contract = sample_contract();
-        //create a game
-        let partner_account: AccountId = "partner.testnet".to_string();
-        let partner_contract: AccountId = "partner_account.testnet".to_string();
-        let partner_fee: U128 = U128(100);
-        contract.create_new_partner(
-            partner_account.clone(),
-            partner_contract.clone(),
-            partner_fee.clone(),
-        );
+        let credits = account.balances.get(&token_contract).unwrap_or(0);
+        account
+            .balances
+            .insert(&token_contract, &(credits + amount));
 
-        //deposit to that game
-        context = get_context(
-            vec![],
-            false,
-            BASE_DEPOSIT.clone(),
-            10_000,
-            OWNER_ACCOUNT.to_string(),
-        );
-        testing_env!(context);
-        contract.deposit_balance(partner_contract.clone());
-        let game_balance = contract
-            .game_balances
-            .get(&partner_contract.clone())
-            .unwrap()
-            .get(&OWNER_ACCOUNT.to_string())
-            .unwrap();
-        assert_eq!(BASE_DEPOSIT, game_balance);
-    }
-
-    #[test]
-    #[should_panic(expected = "Minimum accepted deposit is 1000")]
-    fn test_deposit_balance_minimum_deposit() {
-        const BASE_DEPOSIT: u128 = 10;
-        const ONE_YOCTO_DEPOSIT: u128 = 1;
-        let mut context = get_context(
-            vec![],
-            false,
-            ONE_YOCTO_DEPOSIT.clone(),
-            10_000,
-            OWNER_ACCOUNT.to_string(),
-        );
-        testing_env!(context);
-        let mut contract = sample_contract();
-        //create a game
-        let partner_account: AccountId = "partner.testnet".to_string();
-        let partner_contract: AccountId = "partner_account.testnet".to_string();
-        let partner_fee: U128 = U128(100);
-        contract.create_new_partner(
-            partner_account.clone(),
-            partner_contract.clone(),
-            partner_fee.clone(),
-        );
-
-        //deposit to that game
-        context = get_context(
-            vec![],
-            false,
-            BASE_DEPOSIT.clone(),
-            10_000,
-            OWNER_ACCOUNT.to_string(),
-        );
-        testing_env!(context);
-        contract.deposit_balance(partner_contract.clone());
-    }
-
-    #[test]
-    #[should_panic(expected = "Panic mode is on, contract has been paused by owner")]
-    fn test_deposit_balance_panic_mode() {
-        const BASE_DEPOSIT: u128 = 10;
-        const ONE_YOCTO_DEPOSIT: u128 = 1;
-        let mut context = get_context(
-            vec![],
-            false,
-            ONE_YOCTO_DEPOSIT.clone(),
-            10_000,
-            OWNER_ACCOUNT.to_string(),
-        );
-        testing_env!(context);
-        let mut contract = sample_contract();
-        //create a game
-        let partner_account: AccountId = "partner.testnet".to_string();
-        let partner_contract: AccountId = "partner_account.testnet".to_string();
-        let partner_fee: U128 = U128(100);
-        contract.create_new_partner(
-            partner_account.clone(),
-            partner_contract.clone(),
-            partner_fee.clone(),
-        );
-        contract.emergency_panic();
-
-        //deposit to that game
-        context = get_context(
-            vec![],
-            false,
-            BASE_DEPOSIT.clone(),
-            10_000,
-            OWNER_ACCOUNT.to_string(),
-        );
-        testing_env!(context);
-        contract.deposit_balance(partner_contract.clone());
-    }
-
-    #[test]
-    fn test_get_credits() {
-        const BASE_DEPOSIT: u128 = 10_000;
-        const ONE_YOCTO_DEPOSIT: u128 = 1;
-        let mut context = get_context(
-            vec![],
-            false,
-            ONE_YOCTO_DEPOSIT.clone(),
-            10_000,
-            OWNER_ACCOUNT.to_string(),
-        );
-        testing_env!(context);
-        let mut contract = sample_contract();
-        //create a game
-        let partner_account: AccountId = "partner.testnet".to_string();
-        let partner_contract: AccountId = "partner_account.testnet".to_string();
-        let partner_fee: U128 = U128(100);
-        contract.create_new_partner(
-            partner_account.clone(),
-            partner_contract.clone(),
-            partner_fee.clone(),
-        );
-
-        //deposit to that game
-        context = get_context(
-            vec![],
-            false,
-            BASE_DEPOSIT.clone(),
-            10_000,
-            OWNER_ACCOUNT.to_string(),
-        );
-        testing_env!(context);
-        contract.deposit_balance(partner_contract.clone());
-        let game_balance = contract
-            .game_balances
-            .get(&partner_contract.clone())
-            .unwrap()
-            .get(&OWNER_ACCOUNT.to_string())
-            .unwrap();
-        let get_credits_balance = contract
-            .get_credits(partner_contract.clone(), OWNER_ACCOUNT.to_string())
-            .0;
-        let zero_get_credits = contract
-            .get_credits(partner_contract.clone(), "420".to_string())
-            .0;
-
-        assert_eq!(BASE_DEPOSIT, game_balance);
-        assert_eq!(BASE_DEPOSIT, get_credits_balance);
-        assert_eq!(0, zero_get_credits);
-    }
-
-    #[test]
-    fn test_retrieve_credits() {
-        const BASE_DEPOSIT: u128 = 10_000;
-        const ONE_YOCTO_DEPOSIT: u128 = 1;
-        let mut context = get_context(
-            vec![],
-            false,
-            ONE_YOCTO_DEPOSIT.clone(),
-            10_000,
-            OWNER_ACCOUNT.to_string(),
-        );
-        testing_env!(context);
-        let mut contract = sample_contract();
-        //create a game
-        let partner_account: AccountId = "partner.testnet".to_string();
-        let partner_contract: AccountId = "partner_account.testnet".to_string();
-        let partner_fee: U128 = U128(100);
-        contract.create_new_partner(
-            partner_account.clone(),
-            partner_contract.clone(),
-            partner_fee.clone(),
-        );
-
-        //deposit to that game
-        context = get_context(
-            vec![],
-            false,
-            BASE_DEPOSIT.clone(),
-            10_000,
-            OWNER_ACCOUNT.to_string(),
-        );
-        testing_env!(context);
-        contract.deposit_balance(partner_contract.clone());
-        let game_balance = contract
-            .game_balances
-            .get(&partner_contract.clone())
-            .unwrap()
-            .get(&OWNER_ACCOUNT.to_string())
-            .unwrap();
-        assert_eq!(BASE_DEPOSIT, game_balance);
-
-        contract.retrieve_credits(partner_contract.clone());
-
-        let game_balance2 = contract
-            .game_balances
-            .get(&partner_contract.clone())
-            .unwrap()
-            .get(&OWNER_ACCOUNT.to_string())
-            .unwrap_or(0);
-        assert_eq!(0, game_balance2);
-    }
-
-    #[test]
-    #[should_panic(expected = "Panic mode is on, contract has been paused by owner")]
-    fn test_retrieve_credits_panic_mode() {
-        const ONE_YOCTO_DEPOSIT: u128 = 1;
-        let context = get_context(
-            vec![],
-            false,
-            ONE_YOCTO_DEPOSIT.clone(),
-            10_000,
-            OWNER_ACCOUNT.to_string(),
-        );
-        testing_env!(context);
-        let mut contract = sample_contract();
-        //create a game
-        let partner_account: AccountId = "partner.testnet".to_string();
-        let partner_contract: AccountId = "partner_account.testnet".to_string();
-        let partner_fee: U128 = U128(100);
-        contract.create_new_partner(
-            partner_account.clone(),
-            partner_contract.clone(),
-            partner_fee.clone(),
-        );
-        contract.emergency_panic();
-        contract.retrieve_credits(partner_contract.clone());
-    }
-
-    #[test]
-    #[should_panic(expected = "Partnered game does not exist")]
-    fn test_retrieve_credits_non_existing_partner() {
-        const ONE_YOCTO_DEPOSIT: u128 = 1;
-        let context = get_context(
-            vec![],
-            false,
-            ONE_YOCTO_DEPOSIT.clone(),
-            10_000,
-            OWNER_ACCOUNT.to_string(),
-        );
-        testing_env!(context);
-        let mut contract = sample_contract();
-        //create a game
-        let partner_contract: AccountId = "partner_account.testnet".to_string();
-
-        //call retrieve_credits on non existing partner
-        contract.retrieve_credits(partner_contract.clone());
+        self.internal_update_account(&account_id, &account);
+        account.track_storage_usage(initial_storage);
+        self.internal_update_account(&account_id, &account);
     }
 }
