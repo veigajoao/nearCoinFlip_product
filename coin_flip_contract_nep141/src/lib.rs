@@ -16,16 +16,15 @@ pub use crate::account::Account;
 pub use crate::errors::*;
 pub use crate::partnered_game::PartneredGame;
 
-pub mod account;
-pub mod actions;
-pub mod errors;
-pub mod ext_interface;
-pub mod partnered_game;
+mod account;
+mod actions;
+mod errors;
+mod ext_interface;
+mod partnered_game;
 
-// const ONE_NEAR: u128 = 1_000_000_000_000_000_000_000_000;
 pub const FRACTIONAL_BASE: u128 = 100_000;
 
-#[derive(BorshDeserialize, BorshSerialize, BorshStorageKey)]
+#[derive(BorshSerialize, BorshStorageKey)]
 pub enum StorageKey {
     Accounts,
     PartneredGames,
@@ -105,6 +104,14 @@ impl Contract {
     pub fn internal_update_account(&mut self, account_id: &AccountId, account: &Account) {
         self.accounts.insert(account_id, account);
     }
+
+    pub fn internal_update_account_storage_check(&mut self, account_id: &AccountId, account: Account, initial_storage: u64) {
+        let mut account = account;
+        self.internal_update_account(account_id, &account);
+        account.track_storage_usage(initial_storage);
+        self.internal_update_account(account_id, &account);
+    }
+
 
     pub fn internal_deposit_storage_account(&mut self, account_id: &AccountId, deposit: u128) {
         let account = match self.internal_get_account(account_id) {

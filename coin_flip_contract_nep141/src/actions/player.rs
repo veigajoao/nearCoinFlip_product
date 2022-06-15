@@ -15,13 +15,18 @@ impl Contract {
     pub fn retrieve_credits(&mut self, token_contract: AccountId, amount: U128) -> Promise {
         self.assert_panic_button();
         let account_id = env::predecessor_account_id();
+        let initial_storage = env::storage_usage();
         let mut account = self.internal_get_account(&account_id).expect(ERR_001);
         let current_balance = account.balances.get(&token_contract).unwrap_or(0);
         assert!(current_balance >= amount.0, "{}", ERR_401);
-        account
-            .balances
-            .insert(&token_contract, &(current_balance - amount.0));
-        self.internal_update_account(&account_id, &account);
+
+        let new_balance = current_balance - amount.0;
+        if new_balance == 0 {
+            account.balances.remove(&token_contract);
+        } else {
+            account.balances.insert(&token_contract, &new_balance);
+        }
+        self.internal_update_account_storage_check(&account_id, account, initial_storage);
         self.safe_transfer_user(token_contract, amount.0, account_id)
     }
 
@@ -33,7 +38,7 @@ impl Contract {
         &mut self,
         game_code: AccountId,
         bet_size: U128,
-        odds: U128,
+        odds: u8,
         _bet_type: String,
     ) -> bool {
         self.assert_panic_button();
@@ -78,17 +83,16 @@ impl Contract {
         // send off credits
         credits = credits - bet_size.0;
         let rand: u8 = *env::random_seed().get(0).unwrap();
-        let u8_odds = u8::try_from(odds.0).unwrap();
         let random_hash = u128::from_be_bytes(
             env::keccak256(&[rand, (self.game_count % 256) as u8])
                 .try_into()
                 .unwrap(),
         );
         let rand_shuffled: u8 = (random_hash % 256) as u8;
-        let outcome: bool = rand_shuffled < u8_odds;
+        let outcome: bool = rand_shuffled < odds;
         if outcome {
             let won_value =
-                (((net_bet * 256) / (odds.0)) * game.bet_payment_adjustment) / FRACTIONAL_BASE;
+                (((net_bet * 256) / (odds as u128)) * game.bet_payment_adjustment) / FRACTIONAL_BASE;
             credits = credits + won_value;
             game.house_funds -= won_value;
         }
@@ -97,7 +101,6 @@ impl Contract {
         self.internal_update_account(&account_id, &account);
         self.internal_update_game(&game_code, &game);
         self.game_count += 1;
-        
         outcome
     }
 }
@@ -120,8 +123,6 @@ impl Contract {
             .balances
             .insert(&token_contract, &(credits + amount));
 
-        self.internal_update_account(&account_id, &account);
-        account.track_storage_usage(initial_storage);
-        self.internal_update_account(&account_id, &account);
+        self.internal_update_account_storage_check(&account_id, account, initial_storage);
     }
 }
